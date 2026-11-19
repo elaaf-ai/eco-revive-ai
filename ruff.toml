@@ -1,0 +1,9 @@
+line-length = 120
+extend-exclude = ["fyp.ipynb", "ml/notebooks", "ml/data", "ml/runs"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[lint.per-file-ignores]
+"ml/scripts/*.py" = ["E402"]
+"ml/tests/*.py" = ["E402"]

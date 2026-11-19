@@ -1,0 +1,14 @@
+# Training baselines carried over from fyp.ipynb. Only seed, workers and run naming are added.
+seed: 42
+baselines:
+  nano:
+    model: yolo11n.pt
+    epochs: 25
+    imgsz: 640
+    batch: 16
+  small:
+    model: yolo11s.pt
+    epochs: 60
+    imgsz: 640
+    batch: 16
+    patience: 20

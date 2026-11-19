@@ -1,0 +1,14 @@
+# Training and evaluation environment (Python 3.14 locally, see ml/README.md).
+# Install torch first:
+#   pip install torch==2.11.0+cu126 torchvision==0.26.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+# The exact resolved set is recorded in ml/requirements.lock.txt.
+# ultralytics matches the version logged in fyp.ipynb.
+ultralytics==8.4.212
+onnx
+onnxruntime
+imagehash
+pyyaml
+requests
+tqdm
+pytest
+ruff

@@ -1,0 +1,80 @@
+# TACO category name -> EcoRevive class. Version this file when any rule changes.
+version: taco-mapping-v1
+
+# Hazardous means items needing special collection because of their contents:
+# batteries and pressurised aerosol cans. Broken glass is a handling risk, not a
+# chemical hazard, so it stays in Glass and the guide layer applies sharp-item rules.
+classes:
+  Plastic:
+    - Other plastic bottle
+    - Clear plastic bottle
+    - Plastic bottle cap
+    - Disposable plastic cup
+    - Foam cup
+    - Other plastic cup
+    - Plastic lid
+    - Other plastic
+    - Plastic film
+    - Six pack rings
+    - Garbage bag
+    - Other plastic wrapper
+    - Single-use carrier bag
+    - Polypropylene bag
+    - Crisp packet
+    - Spread tub
+    - Tupperware
+    - Disposable food container
+    - Foam food container
+    - Other plastic container
+    - Plastic glooves
+    - Plastic utensils
+    - Plastic straw
+    - Styrofoam piece
+  Glass:
+    - Glass bottle
+    - Broken glass
+    - Glass cup
+    - Glass jar
+  Metal:
+    - Aluminium foil
+    - Metal bottle cap
+    - Food Can
+    - Drink can
+    - Metal lid
+    - Pop tab
+    - Scrap metal
+  Organic:
+    - Food waste
+  Hazardous:
+    - Battery
+    - Aerosol
+
+# Real objects outside the five classes. They stay unlabeled, so the detector learns
+# to ignore them.
+out_of_scope:
+  - Toilet tube
+  - Other carton
+  - Egg carton
+  - Drink carton
+  - Corrugated carton
+  - Meal carton
+  - Pizza box
+  - Paper cup
+  - Magazine paper
+  - Tissues
+  - Wrapping paper
+  - Normal paper
+  - Paper bag
+  - Paper straw
+  - Rope & strings
+  - Shoe
+  - Cigarette
+
+# Material cannot be determined from the label. Images containing these are excluded,
+# because leaving them unlabeled would teach the detector that real waste is background.
+ambiguous_exclude_image:
+  - Unlabeled litter
+  - Aluminium blister pack
+  - Carded blister pack
+  - Plastified paper bag
+  - Squeezable tube

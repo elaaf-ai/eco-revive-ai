@@ -1,0 +1,69 @@
+{
+  "dataset_version": "taco-5class-v1",
+  "mapping_version": "taco-mapping-v1",
+  "seed": 42,
+  "annotations_sha256": "812c2e3f0d336b437f276597715de2abb08bb8a641599c45f593d233ec66457b",
+  "source_commit": "70479ad9adc3da971a8ae75ac97eb1026910eec7",
+  "batch_assignment": {
+    "batch_1": "train",
+    "batch_10": "test",
+    "batch_11": "train",
+    "batch_12": "train",
+    "batch_13": "train",
+    "batch_14": "train",
+    "batch_15": "train",
+    "batch_2": "train",
+    "batch_3": "test",
+    "batch_4": "val",
+    "batch_5": "train",
+    "batch_6": "val",
+    "batch_7": "train",
+    "batch_8": "test",
+    "batch_9": "train"
+  },
+  "excluded_images": {
+    "ambiguous_label": 277
+  },
+  "image_licenses": {
+    "TACO (per-image terms, see docs/DATASET.md)": 619,
+    "CC": 224,
+    "ODBL (c) OpenLitterMap & Contributors": 380
+  },
+  "near_duplicate_pairs": 2,
+  "images_moved_to_train_for_duplicates": 0,
+  "splits": {
+    "train": {
+      "images": 841,
+      "backgrounds": 75,
+      "instances": {
+        "Plastic": 1104,
+        "Glass": 83,
+        "Metal": 283,
+        "Organic": 3,
+        "Hazardous": 6
+      }
+    },
+    "val": {
+      "images": 172,
+      "backgrounds": 18,
+      "instances": {
+        "Plastic": 211,
+        "Glass": 4,
+        "Metal": 65,
+        "Organic": 1,
+        "Hazardous": 2
+      }
+    },
+    "test": {
+      "images": 210,
+      "backgrounds": 26,
+      "instances": {
+        "Plastic": 217,
+        "Glass": 81,
+        "Metal": 71,
+        "Organic": 1,
+        "Hazardous": 1
+      }
+    }
+  }
+}

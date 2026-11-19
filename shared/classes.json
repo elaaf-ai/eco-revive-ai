@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "classes": [
+    { "id": 0, "name": "Plastic" },
+    { "id": 1, "name": "Glass" },
+    { "id": 2, "name": "Metal" },
+    { "id": 3, "name": "Organic" },
+    { "id": 4, "name": "Hazardous" }
+  ]
+}

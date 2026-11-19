@@ -1,0 +1,48 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+key.properties
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+web/dist/
+web/e2e/.results/
+playwright-report/
+*.tsbuildinfo
+
+# Flutter / Android
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+mobile/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+
+# Datasets, weights and run outputs live in approved artifact storage
+ml/data/
+ml/runs/
+ml/artifacts/
+backend/models/
+*.pt
+*.onnx
+*.tflite
+*.tfrecord
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
