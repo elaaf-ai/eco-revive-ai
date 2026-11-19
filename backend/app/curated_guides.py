@@ -1,0 +1,102 @@
+"""Curated guides written by the team. Hazardous guidance is always taken from here."""
+
+from __future__ import annotations
+
+from typing import Literal, TypedDict
+
+
+class CuratedGuide(TypedDict):
+    kind: Literal["upcycle", "disposal"]
+    title: str
+    materials: list[str]
+    steps: list[str]
+    precautions: list[str]
+
+
+SAFETY_NOTICE = (
+    "A photo cannot confirm what an item contains or that it is safe to handle. "
+    "Check it yourself before you start, and follow your local council's rules."
+)
+
+# Added to every Glass and Metal guide, including generated ones.
+MANDATORY_PRECAUTIONS = {
+    "Glass": [
+        "Do not use glass that is chipped, cracked or broken. "
+        "Wrap broken glass in thick paper, label it and put it in general waste.",
+        "Do not cut, drill or heat glass at home.",
+    ],
+    "Metal": [
+        "Check rims and lids for sharp edges. Wear gloves and cover cut edges with tape before handling.",
+        "Do not reuse cans that held paint, fuel or chemicals.",
+    ],
+    "Hazardous": [],
+    "Plastic": [],
+    "Organic": [],
+}
+
+CURATED: dict[str, CuratedGuide] = {
+    "Plastic": {
+        "kind": "upcycle",
+        "title": "Self-watering planter from a plastic bottle",
+        "materials": ["Clean plastic bottle", "Scissors", "Cotton string", "Potting soil", "Seeds or a small plant"],
+        "steps": [
+            "Rinse the bottle and cut it in half around the middle.",
+            "Push a cotton string through a hole in the cap so it hangs into the bottom half.",
+            "Turn the top half upside down into the bottom, add water below and soil plus a plant on top.",
+        ],
+        "precautions": [
+            "Cut slowly and away from your body. Ask an adult to help with scissors.",
+            "Do not reuse bottles that held chemicals or cleaning products.",
+        ],
+    },
+    "Glass": {
+        "kind": "upcycle",
+        "title": "Storage jar from an intact glass jar or bottle",
+        "materials": ["Intact glass jar with lid", "Warm soapy water", "Label or paint marker"],
+        "steps": [
+            "Check the jar carefully for chips and cracks. Stop if you find any.",
+            "Soak it in warm soapy water, remove the old label and let it dry fully.",
+            "Label it and use it to store dry food, seeds, buttons or stationery.",
+        ],
+        "precautions": [],
+    },
+    "Metal": {
+        "kind": "upcycle",
+        "title": "Desk organiser from a food or drink can",
+        "materials": ["Clean empty can", "Electrical tape", "Paper or fabric for wrapping", "Glue"],
+        "steps": [
+            "Rinse the can and let it dry completely.",
+            "Cover the top rim with a double layer of electrical tape.",
+            "Wrap the outside in paper or fabric and use it for pens, brushes or cutlery.",
+        ],
+        "precautions": [],
+    },
+    "Organic": {
+        "kind": "upcycle",
+        "title": "Start a simple compost bin",
+        "materials": ["Bin or box with a lid", "Fruit and vegetable scraps", "Dry leaves or shredded cardboard"],
+        "steps": [
+            "Make a few small air holes in the bin and place it outdoors on soil or grass.",
+            "Add food scraps and cover each layer with an equal amount of dry leaves or cardboard.",
+            "Turn the mix every week. It becomes compost in about two to three months.",
+        ],
+        "precautions": [
+            "Do not add meat, dairy, oily food or pet waste. They attract pests.",
+            "Wash your hands after handling food waste.",
+        ],
+    },
+    "Hazardous": {
+        "kind": "disposal",
+        "title": "Store safely and take to a hazardous waste collection point",
+        "materials": ["Sturdy box or tub", "Tape for battery terminals", "Gloves"],
+        "steps": [
+            "Do not open, crush, puncture or burn the item. Keep it away from heat and children.",
+            "Tape the terminals of batteries, keep aerosol cans upright, and store everything in a dry box.",
+            "Take it to a battery drop-off or household hazardous waste site. Never put it in regular bins.",
+        ],
+        "precautions": [
+            "Do not upcycle hazardous items.",
+            "If a battery is swollen, hot, leaking or smoking, move away and contact your local fire service.",
+        ],
+    },
+}

@@ -1,0 +1,8 @@
+# Direct runtime dependencies. Exact versions are pinned in requirements.txt.
+fastapi
+uvicorn[standard]
+pydantic-settings
+onnxruntime
+numpy
+pillow
+google-genai
