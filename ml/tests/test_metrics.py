@@ -50,6 +50,17 @@ def test_compute_ap_bounds():
     assert compute_ap(np.array([0.0]), np.array([0.0])) < 0.01
 
 
+def test_presence_metrics_and_baseline():
+    from ecorevive_ml.metrics import best_presence_threshold, presence_metrics
+
+    has = np.array([True, True, True, False])
+    scores = np.array([0.9, 0.6, 0.2, 0.7])
+    m = presence_metrics(has, scores, 0.5)
+    assert m["counts"] == {"tp": 2, "tn": 0, "fp": 1, "fn": 1}
+    assert m["accuracy"] == 0.5 and m["majority_baseline_accuracy"] == 0.75
+    assert 0.6 < best_presence_threshold(has, scores) <= 0.9
+
+
 def test_confusion_matrix_counts_misses_and_false_positives():
     gt = np.array([[0, 0, 1, 1], [5, 5, 6, 6]], float)
     preds = np.array([[0, 0, 1, 1], [9, 9, 10, 10]], float)

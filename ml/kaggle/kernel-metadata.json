@@ -1,0 +1,23 @@
+{
+    "machine_shape":  "NvidiaTeslaT4",
+    "id":  "elaafali/ecorevive-train-v2",
+    "enable_internet":  "true",
+    "title":  "ecorevive-train-v2",
+    "kernel_type":  "script",
+    "model_sources":  [
+
+                      ],
+    "is_private":  "true",
+    "dataset_sources":  [
+                            "elaafali/ecorevive-taco-5class-v2"
+                        ],
+    "language":  "python",
+    "competition_sources":  [
+
+                            ],
+    "enable_gpu":  "true",
+    "code_file":  "train_kernel.py",
+    "kernel_sources":  [
+
+                       ]
+}

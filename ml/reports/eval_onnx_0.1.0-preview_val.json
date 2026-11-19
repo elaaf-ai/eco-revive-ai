@@ -1,5 +1,5 @@
 {
-  "evaluated_at": "2026-11-19T06:53:34.192523+00:00",
+  "evaluated_at": "2026-11-19T18:27:03.200594+00:00",
   "model_version": "0.1.0-preview",
   "format": "onnx",
   "sha256": "8d96b15df53f667de22c4057d9ce6c2b3573d74e428c72c2e5035060f1c328ed",
@@ -113,9 +113,47 @@
       ]
     ]
   },
+  "photo_level": {
+    "class": "Plastic",
+    "question": "Does the photo contain plastic?",
+    "at_app_threshold_0.25": {
+      "threshold": 0.25,
+      "photos": 172,
+      "photos_with_class": 138,
+      "accuracy": 0.7209,
+      "precision": 0.8214,
+      "recall": 0.8333,
+      "balanced_accuracy": 0.549,
+      "majority_baseline_accuracy": 0.8023,
+      "counts": {
+        "tp": 115,
+        "tn": 9,
+        "fp": 25,
+        "fn": 23
+      }
+    },
+    "at_chosen_threshold": {
+      "threshold": 0.63,
+      "photos": 172,
+      "photos_with_class": 138,
+      "accuracy": 0.6047,
+      "precision": 0.85,
+      "recall": 0.6159,
+      "balanced_accuracy": 0.5874,
+      "majority_baseline_accuracy": 0.8023,
+      "counts": {
+        "tp": 85,
+        "tn": 19,
+        "fp": 15,
+        "fn": 53
+      },
+      "threshold_source": "chosen on this validation split"
+    },
+    "target_accuracy": 0.85
+  },
   "latency_ms": {
-    "p50": 152.2,
-    "p95": 194.0,
+    "p50": 251.6,
+    "p95": 348.7,
     "note": "model forward + pre/post-processing per image on this CPU, one image at a time"
   },
   "target_map50": 0.85,

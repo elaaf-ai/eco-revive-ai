@@ -106,6 +106,41 @@ def ap_per_class(
     }
 
 
+def presence_metrics(has_target: np.ndarray, scores: np.ndarray, threshold: float) -> dict:
+    """Photo-level accuracy for 'does this photo contain the class?'.
+
+    has_target: bool per photo (ground truth contains at least one box of the class).
+    scores: highest predicted confidence for the class per photo (0 when none).
+    The majority-class baseline is reported so a high accuracy can be judged fairly.
+    """
+    predicted = scores >= threshold
+    tp = int(np.sum(predicted & has_target))
+    tn = int(np.sum(~predicted & ~has_target))
+    fp = int(np.sum(predicted & ~has_target))
+    fn = int(np.sum(~predicted & has_target))
+    total = len(has_target)
+    positives = int(has_target.sum())
+    return {
+        "threshold": round(float(threshold), 3),
+        "photos": total,
+        "photos_with_class": positives,
+        "accuracy": round((tp + tn) / total, 4) if total else 0.0,
+        "precision": round(tp / (tp + fp), 4) if tp + fp else 0.0,
+        "recall": round(tp / (tp + fn), 4) if tp + fn else 0.0,
+        "balanced_accuracy": round(
+            ((tp / (tp + fn) if tp + fn else 0) + (tn / (tn + fp) if tn + fp else 0)) / 2, 4
+        ),
+        "majority_baseline_accuracy": round(max(positives, total - positives) / total, 4) if total else 0.0,
+        "counts": {"tp": tp, "tn": tn, "fp": fp, "fn": fn},
+    }
+
+
+def best_presence_threshold(has_target: np.ndarray, scores: np.ndarray) -> float:
+    """Threshold maximising balanced accuracy. Choose it on validation only, never on test."""
+    candidates = np.round(np.arange(0.05, 0.95, 0.01), 3)
+    return float(max(candidates, key=lambda t: presence_metrics(has_target, scores, t)["balanced_accuracy"]))
+
+
 def confusion_matrix(
     pred_boxes: np.ndarray,
     pred_cls: np.ndarray,

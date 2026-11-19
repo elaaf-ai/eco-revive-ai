@@ -30,7 +30,13 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from app.detector import OnnxDetector  # noqa: E402
 from ecorevive_ml.labels import canonical_names  # noqa: E402
-from ecorevive_ml.metrics import ap_per_class, confusion_matrix, match_predictions  # noqa: E402
+from ecorevive_ml.metrics import (  # noqa: E402
+    ap_per_class,
+    best_presence_threshold,
+    confusion_matrix,
+    match_predictions,
+    presence_metrics,
+)
 
 TARGET_MAP50 = 0.85
 
@@ -54,6 +60,9 @@ def main() -> int:
     parser.add_argument("--confirm-locked-test", action="store_true")
     parser.add_argument("--out", type=Path, default=ROOT / "ml" / "reports")
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--presence-class", default="Plastic", help="Class for the photo-level accuracy metric")
+    parser.add_argument("--presence-threshold", type=float, default=None,
+                        help="Fixed threshold for the test split, chosen on validation beforehand")
     args = parser.parse_args()
     if args.split == "test" and not args.confirm_locked_test:
         parser.error("The test split is locked. Pass --confirm-locked-test for the final evaluation only.")
@@ -69,6 +78,9 @@ def main() -> int:
     stats_tp, stats_conf, stats_pred, stats_target = [], [], [], []
     matrix = np.zeros((len(names) + 1, len(names) + 1), dtype=int)
     timings: list[float] = []
+    presence_id = names.index(args.presence_class)
+    has_target: list[bool] = []
+    top_scores: list[float] = []
     for image_path in images:
         # Ultralytics layout: .../images/<dir>/x.jpg pairs with .../labels/<dir>/x.txt
         label_path = image_path.parents[2] / "labels" / image_path.parent.name / f"{image_path.stem}.txt"
@@ -86,6 +98,8 @@ def main() -> int:
         stats_pred.append(cls)
         stats_target.append(gt_cls)
         matrix += confusion_matrix(boxes, cls, conf, gt_boxes, gt_cls, len(names))
+        has_target.append(bool((gt_cls == presence_id).any()))
+        top_scores.append(float(conf[cls == presence_id].max()) if (cls == presence_id).any() else 0.0)
 
     per_class = ap_per_class(
         np.concatenate(stats_tp), np.concatenate(stats_conf), np.concatenate(stats_pred),
@@ -93,6 +107,23 @@ def main() -> int:
     )
     present = [c for c, m in per_class.items() if m.instances > 0]
     map50 = float(np.mean([per_class[c].ap50 for c in present]))
+
+    truth, scores = np.array(has_target), np.array(top_scores)
+    if args.split == "val":
+        chosen = best_presence_threshold(truth, scores)
+        threshold_note = "chosen on this validation split"
+    else:
+        if args.presence_threshold is None:
+            parser.error("--presence-threshold is required on test; take it from the validation report.")
+        chosen = args.presence_threshold
+        threshold_note = "fixed in advance from validation"
+    presence = {
+        "class": args.presence_class,
+        "question": f"Does the photo contain {args.presence_class.lower()}?",
+        "at_app_threshold_0.25": presence_metrics(truth, scores, 0.25),
+        "at_chosen_threshold": presence_metrics(truth, scores, chosen) | {"threshold_source": threshold_note},
+        "target_accuracy": 0.85,
+    }
     report = {
         "evaluated_at": datetime.now(UTC).isoformat(),
         "model_version": detector.version,
@@ -111,6 +142,7 @@ def main() -> int:
             for c, m in per_class.items()
         },
         "confusion_matrix": {"rows_predicted_cols_true": names + ["background"], "counts": matrix.tolist()},
+        "photo_level": presence,
         "latency_ms": {
             "p50": round(statistics.median(timings), 1),
             "p95": round(sorted(timings)[int(0.95 * (len(timings) - 1))], 1),
