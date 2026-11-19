@@ -1,0 +1,49 @@
+name: Train detector (manual, GPU)
+
+# Full training never runs on push. It needs a self-hosted runner with an NVIDIA GPU and the
+# dataset bundle from approved storage. The team's default path is the Colab notebook
+# ml/notebooks/ecorevive_train.ipynb; this workflow is for a GPU machine if one becomes available.
+on:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: nano or small
+        required: true
+        default: nano
+      bundle_url:
+        description: HTTPS URL of ecorevive-colab-bundle.zip
+        required: true
+      bundle_sha256:
+        description: Expected SHA-256 of the bundle
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  train:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch and verify dataset bundle
+        run: |
+          curl -fL "${{ inputs.bundle_url }}" -o bundle.zip
+          echo "${{ inputs.bundle_sha256 }}  bundle.zip" | sha256sum -c -
+          unzip -q bundle.zip -d work
+      - name: Install
+        run: pip install -r ml/requirements.txt
+      - name: Validate dataset
+        run: python ml/scripts/validate_dataset.py --data work/dataset/data.yaml
+      - name: Train
+        run: python ml/scripts/train.py --data work/dataset/data.yaml --baseline "${{ inputs.baseline }}" --project ml/runs
+      - name: Validation metrics (model selection only, never the locked test split)
+        run: python ml/scripts/evaluate.py --weights ml/runs/ecorevive_${{ inputs.baseline }}/weights/best.pt --data work/dataset/data.yaml --split val
+      - uses: actions/upload-artifact@v5
+        with:
+          name: run-${{ inputs.baseline }}-${{ github.run_id }}
+          path: |
+            ml/runs/ecorevive_${{ inputs.baseline }}/weights/best.pt
+            ml/runs/ecorevive_${{ inputs.baseline }}/results.csv
+            ml/runs/ecorevive_${{ inputs.baseline }}/environment.json
+            ml/reports/

@@ -46,3 +46,9 @@ backend/models/
 .DS_Store
 Thumbs.db
 .idea/
+
+# Model files copied into the Flutter app
+mobile/assets/model/manifest.json
+mobile/android/app/.cxx/
+
+mobile/android/build/

@@ -1,0 +1,21 @@
+# Local run: docker compose up --build, then open http://localhost:8000
+# Put model.onnx + manifest.json in ./backend/models/current first (see README), or set MODEL_VERSION.
+services:
+  ecorevive:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ECOREVIVE_MODEL_STATUS: ${ECOREVIVE_MODEL_STATUS:-preview}
+      ECOREVIVE_ALLOWED_ORIGINS: '["http://localhost:8000"]'
+    volumes:
+      - ./backend/models/current:/app/models/current:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
+    restart: unless-stopped

@@ -1,0 +1,55 @@
+name: Release
+
+# Builds the production image only after CI passes for the commit and the selected model
+# version is approved for the requested channel. Push is to GitHub Container Registry; the
+# host-specific deploy step is added once a host is chosen (see docs/RUNBOOK.md).
+on:
+  workflow_dispatch:
+    inputs:
+      model_version:
+        description: Model version from models/registry/
+        required: true
+        default: 0.1.0-preview
+      channel:
+        description: preview or production
+        required: true
+        default: preview
+
+permissions:
+  contents: read
+  packages: write
+  checks: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Required CI checks passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          failed=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
+            --jq '[.check_runs[] | select(.app.slug=="github-actions" and .name!="gate" and .conclusion!="success")] | length')
+          total=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" --jq '.total_count')
+          test "$total" -gt 0 && test "$failed" -eq 0
+      - name: Model is approved for this channel
+        run: python .github/scripts/model_gate.py "${{ inputs.model_version }}" "${{ inputs.channel }}"
+
+  image:
+    needs: gate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        run: |
+          image=ghcr.io/${{ github.repository_owner }}/ecorevive
+          tag=${{ github.sha }}-${{ inputs.model_version }}
+          docker build -t "$image:$tag" .
+          docker push "$image:$tag"
+          echo "Pushed $image:$tag (set MODEL_VERSION=${{ inputs.model_version }} on the host)"

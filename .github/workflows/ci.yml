@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ml:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: pip install pyyaml==6.0.3 pytest==9.2.0 ruff==0.17.5
+      - run: ruff check ml
+      - run: pytest ml/tests -q
+
+  backend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - run: pip install --no-deps -r requirements.txt && pip install -r requirements-dev.txt
+      - run: ruff check --config ../ruff.toml .
+      - run: mypy app
+      - run: pytest -q
+      - name: Fixture-model smoke test (real ONNX Runtime inference path)
+        run: |
+          python scripts/fixture_model.py --out models/fixture
+          ECOREVIVE_MODEL_DIR=models/fixture ECOREVIVE_STATIC_DIR= uvicorn app.main:create_app --factory --port 8000 &
+          for i in $(seq 1 30); do curl -fs localhost:8000/readyz && break; sleep 1; done
+          python -c "from PIL import Image; Image.new('RGB',(640,480),(120,130,140)).save('smoke.jpg')"
+          curl -fs -X POST -H 'Content-Type: image/jpeg' --data-binary @smoke.jpg localhost:8000/v1/detect | python -c "import json,sys; d=json.load(sys.stdin); assert d['detections'], d; print('detections', len(d['detections']))"
+
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24.22.3"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v5
+        with:
+          name: web-dist
+          path: web/dist
+
+  e2e:
+    needs: [backend, web]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24.22.3"
+      - run: python -m venv backend/.venv && backend/.venv/bin/pip install --no-deps -r backend/requirements.txt && backend/.venv/bin/pip install -r backend/requirements-dev.txt
+      - run: cd backend && .venv/bin/python scripts/fixture_model.py --out models/fixture
+      - run: cd web && npm ci && npm run build && npx playwright install --with-deps chrome && npx playwright test
+
+  mobile:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.6"
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  docker:
+    needs: [backend, web]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t ecorevive:ci .
+      - name: Container starts and reports not-ready without a model
+        run: |
+          docker run -d --name eco -p 8000:8000 ecorevive:ci
+          for i in $(seq 1 30); do curl -fs localhost:8000/healthz && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/readyz)" = "503"
+          docker logs eco | tail -n 5
