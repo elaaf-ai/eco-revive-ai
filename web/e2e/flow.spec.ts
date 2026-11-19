@@ -2,6 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// These checks rely on the fixture model's fixed boxes; real-model.spec.ts covers trained models.
+test.skip(Boolean(process.env.E2E_MODEL_DIR), "Fixture-model checks");
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const shots = path.resolve(here, "../../docs/screenshots");
 const sample = path.resolve(here, "fixtures/sample-scene.jpg");

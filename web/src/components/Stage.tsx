@@ -51,6 +51,8 @@ export function Stage({ media, detections, selectedId, onSelect, videoRef, image
             const meta = CLASS_META[detection.class_name];
             const selected = detection.id === selectedId;
             const label = `${detection.class_name} ${percent(detection.confidence)}`;
+            // In busy scenes, only label the selected and confident boxes so labels don't pile up.
+            const showLabel = selected || detections.length <= 3 || detection.confidence >= 0.5;
             return (
               <button
                 key={detection.id}
@@ -63,7 +65,11 @@ export function Stage({ media, detections, selectedId, onSelect, videoRef, image
                 aria-label={onSelect ? `Select ${label}` : label}
                 disabled={!onSelect}
               >
-                <span className={`box-label is-${labelPlacement(detection.box)}`}>{label}</span>
+                {showLabel && (
+                  <span className={`box-label is-${labelPlacement(detection.box)}`} aria-hidden>
+                    {label}
+                  </span>
+                )}
               </button>
             );
           })}

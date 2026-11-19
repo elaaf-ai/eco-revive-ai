@@ -1,18 +1,44 @@
 {
-  "version": "0.1.0-preview",
-  "classes": ["Plastic", "Glass", "Metal", "Organic", "Hazardous"],
-  "imgsz": 640,
-  "dataset_version": "taco-5class-v1",
-  "trained_on": "Google Colab GPU, ml/notebooks/ecorevive_train.ipynb",
-  "artifacts": {
-    "pt": { "file": "best.pt", "bytes": 19169242, "sha256": "54edd79b6b58998ee5723e4402c3a185a644a007b338ed5a1e5651a3d8d19579" },
-    "onnx": { "file": "model.onnx", "bytes": 37934548, "sha256": "8d96b15df53f667de22c4057d9ce6c2b3573d74e428c72c2e5035060f1c328ed" },
-    "tflite": { "file": "model.tflite", "bytes": 37957255, "sha256": "3b9bd8def4952bde3d7da8863c9a9e14947a772c9e17257dd3e57dfc52adb370" }
-  },
-  "evaluation": {
-    "status": "not_evaluated",
-    "locked_test_map50": null,
-    "meets_target": false,
-    "notes": "Checksums are from the Colab export manifest. Parity re-check with square inputs and locked test evaluation are pending."
-  }
+    "version":  "0.1.0-preview",
+    "classes":  [
+                    "Plastic",
+                    "Glass",
+                    "Metal",
+                    "Organic",
+                    "Hazardous"
+                ],
+    "imgsz":  640,
+    "dataset_version":  "taco-5class-v1",
+    "trained_on":  "Google Colab GPU, ml/notebooks/ecorevive_train.ipynb",
+    "artifacts":  {
+                      "pt":  {
+                                 "file":  "best.pt",
+                                 "bytes":  19169242,
+                                 "sha256":  "54edd79b6b58998ee5723e4402c3a185a644a007b338ed5a1e5651a3d8d19579"
+                             },
+                      "onnx":  {
+                                   "file":  "model.onnx",
+                                   "bytes":  37934548,
+                                   "sha256":  "8d96b15df53f667de22c4057d9ce6c2b3573d74e428c72c2e5035060f1c328ed"
+                               },
+                      "tflite":  {
+                                     "file":  "model.tflite",
+                                     "bytes":  37957255,
+                                     "sha256":  "3b9bd8def4952bde3d7da8863c9a9e14947a772c9e17257dd3e57dfc52adb370"
+                                 }
+                  },
+    "evaluation":  {
+                       "status":  "validated_on_val_only",
+                       "architecture":  "YOLO11s",
+                       "val_onnx":  {
+                                        "map50":  0.2459,
+                                        "map50_95":  0.2069,
+                                        "precision":  0.7945,
+                                        "recall":  0.2338,
+                                        "report":  "ml/reports/eval_onnx_0.1.0-preview_val.json"
+                                    },
+                       "locked_test_map50":  null,
+                       "meets_target":  false,
+                       "notes":  "Validation measured locally on the ONNX artifact with backend preprocessing. Locked test not yet run."
+                   }
 }

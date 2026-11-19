@@ -53,3 +53,4 @@ mobile/android/app/.cxx/
 
 mobile/android/build/
 mobile/android/.kotlin/
+mobile/integration_test/test_image.g.dart
