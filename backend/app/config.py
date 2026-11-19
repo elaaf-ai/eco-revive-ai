@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     max_pixels: int = 25_000_000
     min_side: int = 32
 
-    # Rate limits per client per minute.
-    detect_per_minute: int = 40
+    # Rate limits per client per minute. Live preview sends about one frame per second.
+    detect_per_minute: int = 90
     guide_per_minute: int = 20
 
     # Guides.
