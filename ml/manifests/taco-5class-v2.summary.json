@@ -1,0 +1,23 @@
+{
+  "dataset_version": "taco-5class-v2",
+  "base": "taco-5class-v1 (val and test unchanged)",
+  "extra_source": "Roboflow taco-trashnet-current v1 (CC BY 4.0), TrashNet-origin photos only",
+  "mapping_version": "roboflow-mapping-v2",
+  "seed": 42,
+  "roboflow_zip_sha256": "d42d5bda356c0467b3d6dae74a93234367373fe54c9426f7615394b2332b0c02",
+  "extra_sources_kept": 1121,
+  "extra_train_images_added": 1487,
+  "extra_instances_added": {
+    "Glass": 810,
+    "Metal": 387,
+    "Plastic": 724
+  },
+  "excluded": {
+    "prefix:none": 714,
+    "prefix:img": 992,
+    "prefix:batch": 1816,
+    "inconsistent_labels": 2237,
+    "prefix:trash": 289,
+    "background_over_cap": 346
+  }
+}

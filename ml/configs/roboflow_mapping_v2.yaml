@@ -1,0 +1,23 @@
+# Extra training data for taco-5class-v2 from the Roboflow export "taco-trashnet-current" v1
+# (workspace ahmer-imtiaz, CC BY 4.0). Only TrashNet-origin photos are used, identified by their
+# original file-name prefix. Each photo is kept only if every box agrees with its own category.
+version: roboflow-mapping-v2
+source_classes: [giay, khac, kim_loai, nhua]   # paper, other, metal, plastic
+
+# prefix -> (Roboflow class every box must have, EcoRevive class it becomes)
+labelled:
+  plastic: {expect: nhua, to: Plastic}
+  glass: {expect: khac, to: Glass}       # TrashNet glass was exported as "khac" (other)
+  metal: {expect: kim_loai, to: Metal}
+
+# Out-of-scope photos kept as background-only images (all boxes removed), so the model learns
+# that paper and cardboard are not plastic. Capped to keep the class balance sensible.
+background:
+  prefixes: [paper, cardboard]
+  expect: giay
+  max_images: 400
+
+# Not used: TACO copies ("batch_*", already in our dataset and test split), and photos whose
+# origin cannot be identified ("img", "trash", "other").
+excluded_prefixes: [batch, img, trash, other]
+near_duplicate_max_distance: 4
