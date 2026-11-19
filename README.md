@@ -1,6 +1,6 @@
 # EcoRevive
 
-Scan a piece of plastic waste, see what it is, and get a practical upcycling idea, or search an item by name.
+Scan a piece of plastic waste, or type an item code such as 001 (water bottle), to get its recycling steps and an upcycling project. The 14 coded items are listed in shared/plastic_catalog.json and on the site.
 
 **Live (preview):** https://ecorevive-khaki.vercel.app. Hosted on Vercel's free plan, plastic-only mode, model `0.1.0-preview`.
 
