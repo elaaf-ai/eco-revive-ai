@@ -4,8 +4,10 @@ Reads models/registry/<version>.json (committed), downloads model.onnx from MODE
 (or copies from --source-dir), checks SHA-256, and writes manifest.json beside it.
 Exits non-zero and leaves nothing installed if any check fails.
 
-  python scripts/fetch_model.py --version 0.1.0-preview --source-dir ../ml/artifacts/0.1.0-preview --out models/current
-  MODEL_BASE_URL=https://storage.example/ecorevive python scripts/fetch_model.py --version 0.1.0-preview --out /app/models/current
+  python scripts/fetch_model.py --version 0.1.0-preview \
+      --source-dir ../ml/artifacts/0.1.0-preview --out models/current
+  MODEL_BASE_URL=https://storage.example/ecorevive \
+      python scripts/fetch_model.py --version 0.1.0-preview --out /app/models/current
 """
 
 from __future__ import annotations
