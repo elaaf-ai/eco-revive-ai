@@ -21,7 +21,9 @@ from fastapi.staticfiles import StaticFiles
 
 from . import API_VERSION
 from .capacity import InferenceGate
+from .catalog import Catalog, CatalogItem, CatalogSummary
 from .config import Settings, get_settings
+from .curated_guides import SAFETY_NOTICE
 from .detector import ModelLoadError, OnnxDetector, RawDetection
 from .errors import ApiError
 from .guides import GeminiProvider, GuideProvider, GuideService
@@ -370,6 +372,24 @@ def create_app(
         if replayed:
             metrics.incr(f"idempotent_replay_{endpoint}")
         return JSONResponse(result.model_dump(mode="json"), headers={"Idempotent-Replayed": str(replayed).lower()})
+
+    catalog = Catalog()
+
+    @app.get("/v1/items", tags=["items"])
+    async def list_items(q: str | None = None) -> dict:
+        """All coded items, or those matching a code, name or alias."""
+        items = catalog.search(q) if q else catalog.items
+        return {
+            "version": catalog.version,
+            "items": [CatalogSummary.model_validate(i.model_dump()).model_dump() for i in items],
+        }
+
+    @app.get("/v1/items/{code}", tags=["items"], responses=ERRORS)
+    async def get_item(code: str) -> dict:
+        item: CatalogItem | None = catalog.get(code)
+        if item is None:
+            raise ApiError(404, "item_not_found", f"No item has the code {code.strip()[:10]}.")
+        return {**item.model_dump(), "safety_notice": SAFETY_NOTICE, "catalog_version": catalog.version}
 
     @app.get("/v1/metrics", tags=["ops"])
     async def get_metrics():

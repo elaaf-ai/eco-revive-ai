@@ -1,4 +1,4 @@
-import type { DetectResponse, GuideRequest, GuideResponse, Readiness } from "./types";
+import type { CatalogItem, DetectResponse, GuideRequest, GuideResponse, ItemSummary, Readiness } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -131,6 +131,29 @@ export function fetchGuide(body: GuideRequest, signal?: AbortSignal): Promise<Gu
     "/v1/guides",
     { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } },
     { signal, timeoutMs: 30000, idempotencyKey: newId(), retries: 1 },
+  );
+}
+
+export async function fetchItems(signal?: AbortSignal): Promise<ItemSummary[]> {
+  const body = await request<{ items: ItemSummary[] }>("/v1/items", { method: "GET" }, { signal, timeoutMs: 15000 });
+  return body.items;
+}
+
+export function fetchItem(code: string, signal?: AbortSignal): Promise<CatalogItem> {
+  return request<CatalogItem>(`/v1/items/${encodeURIComponent(code)}`, { method: "GET" }, { signal, timeoutMs: 15000 });
+}
+
+/** Find an item by code ("1", "001", "#1") or by name/alias. Exact code wins. */
+export function matchItems(items: ItemSummary[], query: string): ItemSummary[] {
+  const text = query.trim().replace(/^#/, "").toLowerCase();
+  if (!text) return [];
+  if (/^\d{1,3}$/.test(text)) {
+    const code = text.padStart(3, "0");
+    const exact = items.filter((item) => item.code === code);
+    return exact.length ? exact : items.filter((item) => item.code.startsWith(text));
+  }
+  return items.filter(
+    (item) => item.name.toLowerCase().includes(text) || item.aliases.some((alias) => alias.toLowerCase().includes(text)),
   );
 }
 

@@ -65,6 +65,20 @@ export interface GuideResponse {
   cached: boolean;
 }
 
+export interface ItemSummary {
+  code: string;
+  name: string;
+  aliases: string[];
+  resin: { number: number; type: string };
+}
+
+export interface CatalogItem extends ItemSummary {
+  recycling: { accepted: string; steps: string[] };
+  upcycling: { title: string; materials: string[]; steps: string[]; precautions: string[] };
+  safety_notice: string;
+  catalog_version: string;
+}
+
 export interface Readiness {
   ready: boolean;
   model_loaded: boolean;

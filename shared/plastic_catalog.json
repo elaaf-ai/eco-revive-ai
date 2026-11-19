@@ -1,0 +1,342 @@
+{
+  "version": "1.0.0",
+  "note": "Recycling rules differ between councils. Steps describe common practice; the app tells users to check local rules.",
+  "items": [
+    {
+      "code": "001",
+      "name": "Water bottle",
+      "aliases": ["plastic bottle", "pet bottle", "mineral water bottle"],
+      "resin": { "number": 1, "type": "PET" },
+      "recycling": {
+        "accepted": "Widely accepted in household recycling.",
+        "steps": [
+          "Empty the bottle and give it a quick rinse.",
+          "Squash it to save space. Check your local rules on whether to keep the cap on.",
+          "Put it in the plastics or mixed recycling bin."
+        ]
+      },
+      "upcycling": {
+        "title": "Self-watering planter",
+        "materials": ["Clean water bottle", "Scissors", "Cotton string", "Potting soil", "Seeds or a small plant"],
+        "steps": [
+          "Cut the bottle in half around the middle.",
+          "Push a cotton string through a small hole in the cap so it hangs into the bottom half.",
+          "Turn the top half upside down into the bottom, add water below and soil plus a plant on top."
+        ],
+        "precautions": ["Cut slowly and away from your body. Ask an adult to help with scissors."]
+      }
+    },
+    {
+      "code": "002",
+      "name": "Soft drink bottle",
+      "aliases": ["soda bottle", "fizzy drink bottle", "cola bottle", "juice bottle"],
+      "resin": { "number": 1, "type": "PET" },
+      "recycling": {
+        "accepted": "Widely accepted in household recycling.",
+        "steps": [
+          "Empty it fully and rinse out any sugary drink.",
+          "Squash it, and follow local rules on keeping the cap on.",
+          "Put it in the plastics or mixed recycling bin."
+        ]
+      },
+      "upcycling": {
+        "title": "Hanging bird feeder",
+        "materials": ["Clean drink bottle with cap", "Two wooden spoons", "String", "Bird seed"],
+        "steps": [
+          "Make two small holes on opposite sides near the bottom and push a wooden spoon through them.",
+          "Repeat a little higher with the second spoon, then enlarge the holes above each spoon slightly so seed can trickle out.",
+          "Fill the bottle with seed, tie string around the neck and hang it from a branch."
+        ],
+        "precautions": ["Ask an adult to make the holes with a craft knife or scissors."]
+      }
+    },
+    {
+      "code": "003",
+      "name": "Milk jug",
+      "aliases": ["milk bottle", "milk carton plastic", "juice jug"],
+      "resin": { "number": 2, "type": "HDPE" },
+      "recycling": {
+        "accepted": "Widely accepted in household recycling.",
+        "steps": [
+          "Rinse well, because milk residue smells and contaminates other recycling.",
+          "Squash it flat and follow local rules for the cap.",
+          "Put it in the plastics or mixed recycling bin."
+        ]
+      },
+      "upcycling": {
+        "title": "Garden watering can",
+        "materials": ["Clean milk jug with cap", "Thumbtack or drawing pin", "Water"],
+        "steps": [
+          "Wash the jug and cap with warm soapy water.",
+          "Press a thumbtack through the cap 8 to 10 times to make small holes.",
+          "Fill the jug with water, screw on the cap and tip it gently over your plants."
+        ],
+        "precautions": ["Push the pin into the cap on a table, not in your hand."]
+      }
+    },
+    {
+      "code": "004",
+      "name": "Shampoo bottle",
+      "aliases": ["shower gel bottle", "conditioner bottle", "lotion bottle", "detergent bottle"],
+      "resin": { "number": 2, "type": "HDPE" },
+      "recycling": {
+        "accepted": "Usually accepted in household recycling once empty.",
+        "steps": [
+          "Use it up completely and rinse out the soap.",
+          "Remove the pump if it has one, because pumps contain metal springs and usually go in general waste.",
+          "Put the bottle and cap in the plastics or mixed recycling bin."
+        ]
+      },
+      "upcycling": {
+        "title": "Desk or bathroom tidy",
+        "materials": ["Clean shampoo bottle", "Scissors", "Washi tape or stickers"],
+        "steps": [
+          "Rinse the bottle until no soap foams, then let it dry.",
+          "Cut off the top third so you have an open pot.",
+          "Cover the cut edge with tape, decorate it and use it for pens, brushes or hair ties."
+        ],
+        "precautions": ["Do not reuse bottles that held bleach or strong cleaners.", "Do not store food in it."]
+      }
+    },
+    {
+      "code": "005",
+      "name": "Yogurt cup",
+      "aliases": ["yoghurt pot", "dessert cup", "pudding cup"],
+      "resin": { "number": 5, "type": "PP" },
+      "recycling": {
+        "accepted": "Accepted in many areas. Check your council's list for pots, tubs and trays.",
+        "steps": [
+          "Scrape out leftovers and rinse.",
+          "Peel off the foil lid and recycle it with metals if your area accepts foil.",
+          "Put the cup in the plastics recycling if pots are accepted, otherwise in general waste."
+        ]
+      },
+      "upcycling": {
+        "title": "Seed starter pots",
+        "materials": ["Clean yogurt cups", "Pencil", "Potting soil", "Seeds", "A tray"],
+        "steps": [
+          "Poke two or three small drainage holes in the bottom with a pencil.",
+          "Fill each cup with soil and plant two seeds about 1 cm deep.",
+          "Stand the cups on a tray by a sunny window and water a little every few days."
+        ],
+        "precautions": ["Wash your hands after handling soil."]
+      }
+    },
+    {
+      "code": "006",
+      "name": "Takeaway food container",
+      "aliases": ["food tub", "lunch box", "delivery container", "ice cream tub"],
+      "resin": { "number": 5, "type": "PP" },
+      "recycling": {
+        "accepted": "Accepted in many areas when clean.",
+        "steps": [
+          "Remove all food and wipe out grease.",
+          "Rinse with warm water and let it dry.",
+          "Put it in the plastics recycling if tubs are accepted. Heavily greasy containers go in general waste."
+        ]
+      },
+      "upcycling": {
+        "title": "Drawer organiser",
+        "materials": ["Several clean containers of different sizes", "Double-sided tape"],
+        "steps": [
+          "Wash the containers and lids and let them dry.",
+          "Arrange them inside a drawer to fit the space.",
+          "Stick them down with double-sided tape and sort small items such as cables, batteries or stationery into them."
+        ],
+        "precautions": []
+      }
+    },
+    {
+      "code": "007",
+      "name": "Bottle cap",
+      "aliases": ["plastic lid", "screw cap", "bottle top"],
+      "resin": { "number": 5, "type": "PP or HDPE" },
+      "recycling": {
+        "accepted": "Loose caps are often too small for sorting machines.",
+        "steps": [
+          "Check your local rules: many areas ask you to screw the cap back on the empty bottle.",
+          "If loose caps are not accepted, collect them for a cap collection scheme if one exists near you.",
+          "Otherwise put loose caps in general waste."
+        ]
+      },
+      "upcycling": {
+        "title": "Bottle-cap coasters",
+        "materials": ["About 20 clean caps", "Strong craft glue", "A cork or card circle"],
+        "steps": [
+          "Wash and dry the caps and sort them by colour.",
+          "Arrange them flat-side up on the cork circle in a pattern.",
+          "Glue each cap down and leave it to dry overnight before use."
+        ],
+        "precautions": ["Keep caps away from small children; they are a choking hazard."]
+      }
+    },
+    {
+      "code": "008",
+      "name": "Plastic carrier bag",
+      "aliases": ["shopping bag", "plastic bag", "grocery bag"],
+      "resin": { "number": 4, "type": "LDPE" },
+      "recycling": {
+        "accepted": "Usually not accepted in household bins because film jams sorting machines.",
+        "steps": [
+          "Reuse it as many times as you can.",
+          "Make sure it is empty, clean and dry.",
+          "Take it to a supermarket soft-plastics or bag collection point."
+        ]
+      },
+      "upcycling": {
+        "title": "Plastic yarn (plarn) braid",
+        "materials": ["5 to 10 clean bags", "Scissors", "Tape"],
+        "steps": [
+          "Flatten each bag and cut it into 3 cm wide loops across the bag.",
+          "Link the loops together into one long strip by pulling each loop through the next.",
+          "Tape three strips to a table and braid them into a strong rope for skipping, tying or weaving."
+        ],
+        "precautions": ["Keep plastic bags away from babies and small children."]
+      }
+    },
+    {
+      "code": "009",
+      "name": "Plastic straw",
+      "aliases": ["drinking straw", "straws"],
+      "resin": { "number": 5, "type": "PP" },
+      "recycling": {
+        "accepted": "Not recyclable in most household bins because straws are too small to sort.",
+        "steps": [
+          "Avoid single-use straws where you can.",
+          "Collect used straws for a craft project.",
+          "Otherwise put them in general waste, not the recycling."
+        ]
+      },
+      "upcycling": {
+        "title": "Straw pencil holder",
+        "materials": ["Clean straws", "An empty can or cardboard tube", "Glue", "Scissors"],
+        "steps": [
+          "Wash and dry the straws and cut them to the height of the can.",
+          "Spread glue around the outside of the can in strips.",
+          "Press the straws side by side around the can until it is covered, then let it dry."
+        ],
+        "precautions": ["Cover any sharp rim of the can with tape first."]
+      }
+    },
+    {
+      "code": "010",
+      "name": "Disposable plastic cup",
+      "aliases": ["party cup", "drinks cup", "clear cup", "smoothie cup"],
+      "resin": { "number": 1, "type": "PET or PS (check the number)" },
+      "recycling": {
+        "accepted": "Clear PET (1) cups are often accepted; PS (6) cups usually are not.",
+        "steps": [
+          "Look for the number inside the triangle on the bottom of the cup.",
+          "If it is 1, rinse it and put it in the plastics recycling.",
+          "If it is 6 or has no number, put it in general waste."
+        ]
+      },
+      "upcycling": {
+        "title": "Mini herb planter",
+        "materials": ["Clean cups", "Pencil", "Small stones", "Potting soil", "Herb seeds"],
+        "steps": [
+          "Poke drainage holes in the bottom of each cup with a pencil.",
+          "Add a layer of small stones, then fill with soil.",
+          "Sow herb seeds such as cress or basil and keep the soil damp on a sunny sill."
+        ],
+        "precautions": []
+      }
+    },
+    {
+      "code": "011",
+      "name": "Polystyrene foam",
+      "aliases": ["styrofoam", "foam packaging", "foam tray", "foam cup", "eps"],
+      "resin": { "number": 6, "type": "PS / EPS" },
+      "recycling": {
+        "accepted": "Rarely accepted in household recycling.",
+        "steps": [
+          "Remove tape and labels and keep it clean.",
+          "Check whether your council or a local shop has a foam drop-off point.",
+          "If not, break it into pieces in a bag and put it in general waste so it does not blow away."
+        ]
+      },
+      "upcycling": {
+        "title": "Plant-pot drainage filler",
+        "materials": ["Clean foam packaging", "A large plant pot", "Potting soil"],
+        "steps": [
+          "Break the foam into chunks about the size of a walnut, inside a bag to catch the bits.",
+          "Fill the bottom quarter of a large pot with the chunks.",
+          "Add soil on top and plant as normal. The foam makes the pot lighter and drains well."
+        ],
+        "precautions": ["Never burn polystyrene.", "Do not use foam that touched raw meat."]
+      }
+    },
+    {
+      "code": "012",
+      "name": "Crisp packet",
+      "aliases": ["chip bag", "snack wrapper", "sweet wrapper", "wrapper"],
+      "resin": { "number": 7, "type": "Mixed layers (plastic and foil)" },
+      "recycling": {
+        "accepted": "Not accepted in household recycling because the layers cannot be separated.",
+        "steps": [
+          "Shake out crumbs and wipe the inside.",
+          "Check for a take-back or soft-plastics scheme at local shops.",
+          "If there is none, put it in general waste."
+        ]
+      },
+      "upcycling": {
+        "title": "Woven coaster",
+        "materials": ["6 to 8 clean crisp packets", "Scissors", "Tape"],
+        "steps": [
+          "Cut each packet open, wash and dry it, and cut it into 2 cm strips.",
+          "Fold each strip in half lengthways so the shiny side shows.",
+          "Weave the strips over and under into a square and tape the edges on the back."
+        ],
+        "precautions": []
+      }
+    },
+    {
+      "code": "013",
+      "name": "Plastic cutlery",
+      "aliases": ["plastic fork", "plastic spoon", "plastic knife", "disposable cutlery"],
+      "resin": { "number": 6, "type": "PS" },
+      "recycling": {
+        "accepted": "Usually not accepted in household recycling.",
+        "steps": [
+          "Reuse it at home or in packed lunches where you can.",
+          "Wash it if you plan to use it for crafts.",
+          "Otherwise put it in general waste."
+        ]
+      },
+      "upcycling": {
+        "title": "Garden plant labels",
+        "materials": ["Clean plastic spoons or knives", "Permanent marker"],
+        "steps": [
+          "Wash and dry the cutlery.",
+          "Write the plant name on the flat part with a permanent marker.",
+          "Push the handle into the soil next to each plant."
+        ],
+        "precautions": []
+      }
+    },
+    {
+      "code": "014",
+      "name": "Fruit punnet",
+      "aliases": ["berry box", "fruit tray", "salad box", "clamshell"],
+      "resin": { "number": 1, "type": "PET" },
+      "recycling": {
+        "accepted": "Accepted in many areas as pots, tubs and trays.",
+        "steps": [
+          "Remove the absorbent pad and the label if they peel off easily.",
+          "Rinse out juice and let it dry.",
+          "Put it in the plastics recycling if trays are accepted in your area."
+        ]
+      },
+      "upcycling": {
+        "title": "Mini greenhouse for seedlings",
+        "materials": ["Clean clear punnet with lid", "Potting soil", "Seeds", "Spray bottle of water"],
+        "steps": [
+          "Fill the bottom of the punnet with 3 cm of damp soil.",
+          "Sprinkle seeds on top and cover lightly with soil.",
+          "Close the lid to keep moisture in, place it in light, and open it once seedlings touch the lid."
+        ],
+        "precautions": []
+      }
+    }
+  ]
+}

@@ -21,15 +21,25 @@ test("home shows the plastic product and a search bar", async ({ page }, info) =
   await page.screenshot({ path: path.join(shots, `plastic-${info.project.name}-home.png`), fullPage: true });
 });
 
-test("search bar returns a labelled guide", async ({ page }, info) => {
+test("item code 001 shows the water bottle's recycling and upcycling methods", async ({ page }, info) => {
   await page.goto("/");
-  await page.getByRole("searchbox", { name: "Plastic item name" }).fill("water bottle");
-  await page.getByRole("button", { name: "Get guide" }).click();
-  await expect(page.locator("#guide-title")).toBeVisible();
-  await expect(page.getByText(/Guide for “water bottle”/)).toBeVisible();
+  await page.getByRole("searchbox", { name: "Item code or name" }).fill("001");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Water bottle" })).toBeVisible();
+  await expect(page.getByLabel("Item code 001")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Recycling/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Upcycling: Self-watering planter/ })).toBeVisible();
+  await expect(page.getByText("All item codes (14)")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   await page.screenshot({ path: path.join(shots, `plastic-${info.project.name}-search.png`), fullPage: true });
+});
+
+test("typing a name suggests coded items", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("searchbox", { name: "Item code or name" }).fill("yog");
+  await page.getByRole("list", { name: "Matching items" }).getByRole("button", { name: /005\s*Yogurt cup/ }).click();
+  await expect(page.getByRole("heading", { name: "Yogurt cup" })).toBeVisible();
 });
 
 test("scan shows only plastic boxes", async ({ page }, info) => {
