@@ -20,8 +20,11 @@ export function useCamera() {
   const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<CameraStatus>("off");
   const [facing, setFacing] = useState<"environment" | "user">("environment");
+  // Bumped by stop() and unmount, so a camera that finishes opening afterwards is closed at once.
+  const generation = useRef(0);
 
   const stop = useCallback(() => {
+    generation.current++;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -35,12 +38,17 @@ export function useCamera() {
         return;
       }
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      const attempt = ++generation.current;
       setStatus("starting");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: { facingMode: { ideal: mode }, width: { ideal: 1280 }, height: { ideal: 720 } },
         });
+        if (attempt !== generation.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         streamRef.current = stream;
         setFacing(mode);
         const video = videoRef.current;
@@ -72,6 +80,9 @@ export function useCamera() {
     document.addEventListener("visibilitychange", onHidden);
     return () => {
       document.removeEventListener("visibilitychange", onHidden);
+      // Intentionally reads the live counter: it invalidates any camera still opening.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      generation.current++;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };

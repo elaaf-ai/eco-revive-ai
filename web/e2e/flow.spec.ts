@@ -56,13 +56,50 @@ test("live camera preview", async ({ page }, info) => {
   await expect(page.locator(".box").first()).toBeVisible({ timeout: 10_000 });
   await shot(page, "camera-live", info.project.name);
 
-  // Leaving the scanner must stop every camera track.
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
-  const live = await page.evaluate(() => {
-    const video = document.querySelector("video");
-    return video?.srcObject ? (video.srcObject as MediaStream).getTracks().some((t) => t.readyState === "live") : false;
+  // Leaving the scanner must stop every camera track. Keep a handle on the stream first,
+  // because the video element disappears with the scanner.
+  const trackCount = await page.evaluate(() => {
+    const stream = document.querySelector("video")?.srcObject as MediaStream | null;
+    (window as unknown as { __cameraStream?: MediaStream }).__cameraStream = stream ?? undefined;
+    return stream?.getTracks().length ?? 0;
   });
-  expect(live).toBe(false);
+  expect(trackCount).toBeGreaterThan(0);
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as unknown as { __cameraStream: MediaStream }).__cameraStream
+          .getTracks()
+          .every((t) => t.readyState === "ended"),
+      ),
+    )
+    .toBe(true);
+});
+
+test("camera that finishes opening after leaving is closed", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      const stream = await original(constraints);
+      (window as unknown as { __lateStream?: MediaStream }).__lateStream = stream;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return stream;
+    };
+  });
+  await page.goto("/#/scan");
+  await page.getByRole("button", { name: "Start camera" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Home" }).click();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const stream = (window as unknown as { __lateStream?: MediaStream }).__lateStream;
+          return stream ? stream.getTracks().every((t) => t.readyState === "ended") : null;
+        }),
+      { timeout: 5000 },
+    )
+    .toBe(true);
 });
 
 test("camera permission denied", async ({ page }, info) => {
