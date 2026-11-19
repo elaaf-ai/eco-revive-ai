@@ -20,7 +20,13 @@ const guide = (overrides: Partial<Guide> = {}): Guide => ({
 const result = (status: DetectResponse["quality"]["status"], detections: DetectResponse["detections"]): DetectResponse => ({
   api_version: "1",
   request_id: "req-1",
-  model: { version: "0.1.0-preview", status: "preview", format: "onnx", classes: ["Plastic", "Glass", "Metal", "Organic", "Hazardous"] },
+  model: {
+    version: "0.1.0-preview",
+    status: "preview",
+    format: "onnx",
+    classes: ["Plastic", "Glass", "Metal", "Organic", "Hazardous"],
+    enabled_classes: ["Plastic", "Glass", "Metal", "Organic", "Hazardous"],
+  },
   image: { width: 640, height: 480 },
   detections,
   quality: { status, message: status === "ok" ? "Select an item." : "The scan is not sure.", image_hints: [] },
@@ -60,6 +66,32 @@ it("asks for confirmation before showing a guide for an uncertain scan", async (
   const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
   expect(body).toMatchObject({ class_name: "Glass", confirmed_by_user: true });
   expect(await screen.findByRole("heading", { name: "Jar storage" })).toBeInTheDocument();
+});
+
+it("asks a yes/no plastic question in plastic-only mode", async () => {
+  const fetchMock = mockGuide(guide());
+  const onRetake = vi.fn();
+  const low = { ...plastic, confidence: 0.32 };
+  render(
+    <ResultsPanel
+      result={result("low_confidence", [low])}
+      selectedId={0}
+      onSelect={() => {}}
+      onRetake={onRetake}
+      announce={() => {}}
+      enabled={["Plastic"]}
+    />,
+  );
+  expect(screen.getByRole("group", { name: "Is this item plastic?" })).toBeInTheDocument();
+  expect(screen.queryByRole("radio", { name: "Glass" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "No, retake photo" }));
+  expect(onRetake).toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Yes, it's plastic" }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+    class_name: "Plastic",
+    confirmed_by_user: true,
+  });
 });
 
 it("shows hazardous guidance as safe disposal", async () => {

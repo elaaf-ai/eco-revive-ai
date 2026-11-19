@@ -1,17 +1,32 @@
 import { ArrowRight, Camera, ImageUp, ShieldCheck } from "lucide-react";
 import { CLASS_META } from "../classes";
-import { WASTE_CLASSES } from "../types";
+import { GuideSearch } from "../components/GuideSearch";
+import type { WasteClass } from "../types";
 
-export function Home({ onStart }: { onStart: () => void }) {
+function listWords(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+export function Home({
+  onStart,
+  enabled,
+  announce,
+}: {
+  onStart: () => void;
+  enabled: WasteClass[];
+  announce: (message: string) => void;
+}) {
+  const single = enabled.length === 1 ? enabled[0] : undefined;
   return (
     <div className="home">
       <section className="hero">
-        <p className="eyebrow">Waste scanner</p>
+        <p className="eyebrow">{single ? `${single} scanner` : "Waste scanner"}</p>
         <h1>
           Point. Scan. <span className="accent">Give it a second life.</span>
         </h1>
         <p className="lede">
-          EcoRevive spots plastic, glass, metal, organic and hazardous waste in a photo, then shows you a short reuse
+          EcoRevive spots {listWords(enabled.map((c) => c.toLowerCase()))} waste in a photo, then shows you a short reuse
           project or how to throw it away safely.
         </p>
         <div className="hero-actions">
@@ -24,28 +39,32 @@ export function Home({ onStart }: { onStart: () => void }) {
         </div>
       </section>
 
-      <section className="class-grid" aria-labelledby="classes-title">
-        <h2 id="classes-title" className="section-title">
-          What it recognises
-        </h2>
-        <ul>
-          {WASTE_CLASSES.map((cls) => (
-            <li key={cls} className="class-card" style={{ ["--box-color" as string]: CLASS_META[cls].color }}>
-              <span className="class-dot" aria-hidden />
-              <strong>{cls}</strong>
-              <span>{CLASS_META[cls].blurb}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {single ? (
+        <GuideSearch material={single} announce={announce} />
+      ) : (
+        <section className="class-grid" aria-labelledby="classes-title">
+          <h2 id="classes-title" className="section-title">
+            What it recognises
+          </h2>
+          <ul>
+            {enabled.map((cls) => (
+              <li key={cls} className="class-card" style={{ ["--box-color" as string]: CLASS_META[cls].color }}>
+                <span className="class-dot" aria-hidden />
+                <strong>{cls}</strong>
+                <span>{CLASS_META[cls].blurb}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="safety" aria-labelledby="safety-title">
         <ShieldCheck size={22} aria-hidden />
         <div>
           <h2 id="safety-title">A scan is a guess, not a safety check</h2>
           <p>
-            A photo can't tell whether something is broken, sharp or contains chemicals. Check the item yourself.
-            Batteries and aerosols always get disposal steps, never craft projects.
+            A photo can't tell whether something is broken, sharp or contains chemicals. Check the item yourself before
+            you reuse it.
           </p>
         </div>
       </section>

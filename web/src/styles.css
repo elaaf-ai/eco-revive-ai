@@ -808,6 +808,95 @@ main {
   gap: 10px;
 }
 
+/* Search */
+.home > * {
+  min-width: 0;
+}
+
+.search {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+}
+
+.panel-intro .search {
+  background: transparent;
+  border: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.search-title {
+  font-size: 1.2rem;
+}
+
+.search-form {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.search-form input {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px 0 44px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.search-form input::placeholder {
+  color: #8f88a0;
+}
+
+.search-form input:focus-visible {
+  outline: 3px solid var(--aqua);
+  outline-offset: 1px;
+}
+
+.search-form .btn {
+  flex: none;
+}
+
+.search-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.chip-button:hover {
+  border-color: var(--aqua);
+}
+
 /* Guide */
 .guide {
   display: grid;

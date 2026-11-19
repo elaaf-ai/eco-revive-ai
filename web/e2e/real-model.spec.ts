@@ -10,6 +10,7 @@ const valDir = path.resolve(here, "../../ml/data/processed/taco-5class-v1/images
 const shots = path.resolve(here, "../../docs/screenshots");
 const photos = ["batch_6_000017.jpg", "batch_4_000096.jpg"].map((name) => path.join(valDir, name));
 
+test.use({ baseURL: "http://127.0.0.1:8011" });
 test.skip(!process.env.E2E_MODEL_DIR, "Set E2E_MODEL_DIR to a trained model to run these checks");
 test.skip(!photos.every((p) => fs.existsSync(p)), "Validation photos not available on this machine");
 

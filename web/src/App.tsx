@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchReadiness } from "./api";
 import { Home } from "./screens/Home";
 import { Scanner } from "./screens/Scanner";
-import type { Readiness } from "./types";
+import type { Readiness, WasteClass } from "./types";
 
 type Route = "home" | "scan";
 
@@ -50,6 +50,11 @@ export function App() {
     document.getElementById("main")?.focus({ preventScroll: true });
   }, [route]);
 
+  // The server decides which classes the product shows; Plastic is the default product.
+  const enabled: WasteClass[] = readiness?.model?.enabled_classes?.length
+    ? readiness.model.enabled_classes
+    : ["Plastic"];
+
   // Re-setting identical text would not be re-announced, so clear first.
   const announce = useCallback((text: string) => {
     setMessage("");
@@ -81,7 +86,11 @@ export function App() {
       </header>
 
       <main id="main" tabIndex={-1}>
-        {route === "home" ? <Home onStart={() => (window.location.hash = "#/scan")} /> : <Scanner announce={announce} />}
+        {route === "home" ? (
+          <Home onStart={() => (window.location.hash = "#/scan")} enabled={enabled} announce={announce} />
+        ) : (
+          <Scanner announce={announce} enabled={enabled} />
+        )}
       </main>
 
       <footer className="footer">

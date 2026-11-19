@@ -36,6 +36,7 @@ def settings(model_dir: Path) -> Settings:
         model_dir=model_dir,
         static_dir=None,
         gemini_api_key=None,
+        enabled_classes=CLASSES,
         detect_per_minute=1000,
         guide_per_minute=1000,
         _env_file=None,

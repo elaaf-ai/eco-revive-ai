@@ -23,6 +23,7 @@ export interface ModelInfo {
   status: "preview" | "released";
   format: "onnx";
   classes: WasteClass[];
+  enabled_classes: WasteClass[];
 }
 
 export type QualityStatus = "ok" | "no_detections" | "low_confidence" | "ambiguous";

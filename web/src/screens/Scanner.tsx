@@ -2,11 +2,12 @@ import { Camera, ImageUp, Loader2, Radio, RefreshCw, SwitchCamera } from "lucide
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, detect, newIdempotencyKey } from "../api";
 import { percent } from "../classes";
+import { GuideSearch } from "../components/GuideSearch";
 import { ResultsPanel } from "../components/ResultsPanel";
 import { Stage } from "../components/Stage";
 import { captureVideoFrame, normaliseUpload, type Frame } from "../frames";
 import type { Size } from "../geometry";
-import type { DetectResponse } from "../types";
+import type { DetectResponse, WasteClass } from "../types";
 import { cameraMessage, useCamera } from "../useCamera";
 
 const LIVE_MIN_INTERVAL_MS = 900;
@@ -30,7 +31,7 @@ function describe(result: DetectResponse): string {
   return `Found ${result.detections.length}: ${items}.`;
 }
 
-export function Scanner({ announce }: { announce: (message: string) => void }) {
+export function Scanner({ announce, enabled }: { announce: (message: string) => void; enabled: WasteClass[] }) {
   const camera = useCamera();
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [frame, setFrame] = useState<(Frame & { url: string }) | null>(null);
@@ -296,12 +297,14 @@ export function Scanner({ announce }: { announce: (message: string) => void }) {
               <li>Pick the item to get a reuse idea or safe disposal steps.</li>
             </ol>
             <p className="muted">Photos are scanned and discarded. They are not stored.</p>
+            {enabled.length === 1 && enabled[0] && <GuideSearch material={enabled[0]} announce={announce} />}
           </div>
         )}
         {scan.status === "scanning" && (
           <div className="panel-intro">
             <p className="loading">
-              <Loader2 className="spin" size={18} aria-hidden /> Looking for waste items…
+              <Loader2 className="spin" size={18} aria-hidden /> Looking for{" "}
+              {enabled.length === 1 ? enabled[0]?.toLowerCase() : "waste"} items…
             </p>
           </div>
         )}
@@ -327,6 +330,7 @@ export function Scanner({ announce }: { announce: (message: string) => void }) {
             onSelect={setSelectedId}
             onRetake={retake}
             announce={announce}
+            enabled={enabled}
           />
         )}
       </section>

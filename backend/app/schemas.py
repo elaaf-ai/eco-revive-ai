@@ -38,6 +38,7 @@ class ModelInfo(BaseModel):
     status: Literal["preview", "released"]
     format: Literal["onnx"]
     classes: list[WasteClass]
+    enabled_classes: list[WasteClass]
 
 
 class ScanQuality(BaseModel):

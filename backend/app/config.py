@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     iou_threshold: float = Field(0.45, ge=0.05, le=0.95)
     low_confidence: float = Field(0.5, ge=0.05, le=0.99)
     max_detections: int = Field(20, ge=1, le=100)
+    # Classes the product shows. The model still predicts all five; others are filtered out.
+    enabled_classes: list[str] = ["Plastic"]
     onnx_threads: int = Field(2, ge=1, le=16)
 
     # Inference capacity. One model instance per process; requests beyond

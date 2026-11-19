@@ -66,15 +66,25 @@ def iou(a: tuple[float, ...], b: tuple[float, ...]) -> float:
     return inter / union if union > 0 else 0.0
 
 
-def assess(detections: list[RawDetection], classes: list[str], low_confidence: float) -> ScanQuality:
+def assess(
+    detections: list[RawDetection],
+    classes: list[str],
+    low_confidence: float,
+    competitors: list[RawDetection] | None = None,
+    item_word: str = "waste",
+) -> ScanQuality:
+    """Judge the shown detections. Competitors may include hidden classes, so a plastic box that
+    overlaps an equally likely metal box is still reported as ambiguous."""
     if not detections:
         return ScanQuality(
             status="no_detections",
-            message="No waste item recognised. Fill the frame with one item on a plain background.",
+            message=f"No {item_word} item recognised. Fill the frame with one item on a plain background.",
         )
     ranked = sorted(detections, key=lambda d: d.confidence, reverse=True)
     top = ranked[0]
-    for other in ranked[1:]:
+    for other in sorted(competitors if competitors is not None else ranked[1:], key=lambda d: -d.confidence):
+        if other is top:
+            continue
         if (
             other.class_id != top.class_id
             and iou(top.box, other.box) > 0.6
@@ -101,6 +111,10 @@ def create_app(
     settings = settings or get_settings()
     configure_logging(settings.log_level)
     classes = load_classes(settings.classes_path)
+    unknown = set(settings.enabled_classes) - set(classes)
+    if unknown or not settings.enabled_classes:
+        raise ValueError(f"enabled_classes must be a non-empty subset of {classes}; unknown: {sorted(unknown)}")
+    enabled = [c for c in classes if c in settings.enabled_classes]
     metrics = Metrics()
 
     def default_factory(s: Settings, names: list[str]) -> OnnxDetector:
@@ -117,19 +131,31 @@ def create_app(
             settings.guide_retries,
         )
 
+    model_lock = asyncio.Lock()
+
+    async def ensure_model(app: FastAPI) -> None:
+        """Load and warm the model once per process. Called at startup and, on serverless hosts
+        that skip startup events, on the first request."""
+        if app.state.detector is not None or app.state.model_attempted:
+            return
+        async with model_lock:
+            if app.state.detector is not None or app.state.model_attempted:
+                return
+            try:
+                detector = await asyncio.to_thread(factory, settings, classes)
+                warm_ms = await asyncio.to_thread(detector.warm_up)
+                app.state.detector = detector
+                app.state.model_error = None
+                log(logger, "model_ready", version=detector.version, warm_up_ms=round(warm_ms, 1))
+            except (ModelLoadError, OSError, ValueError) as exc:
+                app.state.model_error = str(exc)
+                log(logger, "model_unavailable", logging.ERROR, reason=str(exc))
+            finally:
+                app.state.model_attempted = True
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.detector = None
-        app.state.model_error = "Model is loading."
-        try:
-            detector = await asyncio.to_thread(factory, settings, classes)
-            warm_ms = await asyncio.to_thread(detector.warm_up)
-            app.state.detector = detector
-            app.state.model_error = None
-            log(logger, "model_ready", version=detector.version, warm_up_ms=round(warm_ms, 1))
-        except (ModelLoadError, OSError, ValueError) as exc:
-            app.state.model_error = str(exc)
-            log(logger, "model_unavailable", logging.ERROR, reason=str(exc))
+        await ensure_model(app)
         yield
         app.state.gate.shutdown()
 
@@ -141,6 +167,9 @@ def create_app(
     )
     app.state.settings = settings
     app.state.metrics = metrics
+    app.state.detector = None
+    app.state.model_error = "Model is loading."
+    app.state.model_attempted = False
     app.state.gate = InferenceGate(
         settings.inference_concurrency, settings.inference_queue_depth, settings.inference_timeout_s
     )
@@ -221,6 +250,7 @@ def create_app(
             status=settings.model_status,
             format="onnx",
             classes=[WasteClass(c) for c in classes],
+            enabled_classes=[WasteClass(c) for c in enabled],
         )
 
     @app.get("/healthz", response_model=Health, tags=["ops"])
@@ -229,6 +259,7 @@ def create_app(
 
     @app.get("/readyz", response_model=Readiness, tags=["ops"], responses={503: {"model": Readiness}})
     async def readyz():
+        await ensure_model(app)
         ready = app.state.detector is not None
         body = Readiness(
             ready=ready,
@@ -241,6 +272,7 @@ def create_app(
 
     @app.get("/v1/model", response_model=ModelInfo, tags=["detection"], responses=ERRORS)
     async def get_model():
+        await ensure_model(app)
         if app.state.detector is None:
             raise ApiError(503, "model_unavailable", "The detection model is not available.", retry_after_s=30)
         return model_info()
@@ -280,6 +312,7 @@ def create_app(
     )
     async def detect(request: Request):
         app.state.limiter.check(rate_key(request), "detect", settings.detect_per_minute)
+        await ensure_model(app)
         if app.state.detector is None:
             raise ApiError(503, "model_unavailable", "The detection model is not available.", retry_after_s=30)
         content_type = request.headers.get("content-type", "").split(";")[0].strip()
@@ -290,9 +323,11 @@ def create_app(
         async def produce() -> DetectResponse:
             detections, size, hints, elapsed = await app.state.gate.run(run_detection, data)
             metrics.observe("inference", elapsed)
-            quality = assess(detections, classes, settings.low_confidence)
+            shown = [d for d in detections if classes[d.class_id] in enabled]
+            item_word = enabled[0].lower() if len(enabled) == 1 else "waste"
+            quality = assess(shown, classes, settings.low_confidence, competitors=detections, item_word=item_word)
             quality.image_hints = hints
-            ranked = sorted(detections, key=lambda d: d.confidence, reverse=True)
+            ranked = sorted(shown, key=lambda d: d.confidence, reverse=True)
             return DetectResponse(
                 request_id=request_id_var.get(),
                 model=model_info(),
@@ -316,6 +351,8 @@ def create_app(
     @app.post("/v1/guides", response_model=GuideResponse, tags=["guides"], responses=ERRORS)
     async def guides(request: Request, body: GuideRequest):
         app.state.limiter.check(rate_key(request), "guides", settings.guide_per_minute)
+        if body.class_name.value not in enabled:
+            raise ApiError(422, "class_not_enabled", f"This app only gives guides for: {', '.join(enabled)}.")
 
         async def produce() -> GuideResponse:
             guide, cached = await app.state.guides.get(body)

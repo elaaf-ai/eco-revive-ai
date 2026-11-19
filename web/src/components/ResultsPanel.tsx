@@ -18,6 +18,7 @@ interface ResultsPanelProps {
   onSelect: (id: number) => void;
   onRetake: () => void;
   announce: (message: string) => void;
+  enabled?: WasteClass[];
 }
 
 const HINTS: Record<string, string> = {
@@ -27,7 +28,15 @@ const HINTS: Record<string, string> = {
   small: "The photo is small. Move closer to the item.",
 };
 
-export function ResultsPanel({ result, selectedId, onSelect, onRetake, announce }: ResultsPanelProps) {
+export function ResultsPanel({
+  result,
+  selectedId,
+  onSelect,
+  onRetake,
+  announce,
+  enabled = [...WASTE_CLASSES],
+}: ResultsPanelProps) {
+  const single = enabled.length === 1 ? enabled[0] : undefined;
   const selected = result.detections.find((d) => d.id === selectedId) ?? null;
   const uncertain = result.quality.status === "low_confidence" || result.quality.status === "ambiguous";
   const [guide, setGuide] = useState<GuideState>({ status: "idle" });
@@ -147,10 +156,10 @@ export function ResultsPanel({ result, selectedId, onSelect, onRetake, announce 
           }}
         >
           <fieldset>
-            <legend>What is this item made of?</legend>
+            <legend>{single ? `Is this item ${single.toLowerCase()}?` : "What is this item made of?"}</legend>
             {!uncertain && <p className="muted">{guide.reason}</p>}
-            <div className="material-options" role="radiogroup">
-              {WASTE_CLASSES.map((cls) => (
+            <div className="material-options" role="radiogroup" hidden={Boolean(single)}>
+              {enabled.map((cls) => (
                 <label key={cls} className="material-option" style={{ ["--box-color" as string]: CLASS_META[cls].color }}>
                   <input
                     type="radio"
@@ -166,8 +175,13 @@ export function ResultsPanel({ result, selectedId, onSelect, onRetake, announce 
           </fieldset>
           <div className="confirm-actions">
             <button type="submit" className="btn btn-primary" disabled={!material}>
-              Show guide for {material ?? "this item"}
+              {single ? `Yes, it's ${single.toLowerCase()}` : `Show guide for ${material ?? "this item"}`}
             </button>
+            {single && (
+              <button type="button" className="btn btn-ghost" onClick={onRetake}>
+                No, retake photo
+              </button>
+            )}
           </div>
         </form>
       )}
