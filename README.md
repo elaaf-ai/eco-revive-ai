@@ -21,7 +21,16 @@ Scan a piece of waste, see what it is, and get a practical upcycling idea or saf
 | `models/registry/` | Model release records: checksums and evaluation status |
 | `docs/` | Architecture, requirements checklist, dataset, model card, evaluation, runbook, test sheet, demo |
 
-## Run locally (Windows PowerShell; use `bin/` instead of `Scripts\` on macOS/Linux)
+## Quick start (Windows)
+
+```powershell
+cd eco-revive-ai
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+Open http://localhost:8000. The script sets up the backend environment on first run, builds the website if needed, and installs the trained model from `ml\artifacts\0.1.0-preview\` if present (checksum verified). Without the model, it uses the fixture model and says so. To use Gemini, put `GEMINI_API_KEY=...` in `backend\.env`; that file is gitignored. Press Ctrl+C to stop.
+
+## Run the parts separately (for development; use `bin/` instead of `Scripts\` on macOS/Linux)
 
 ```powershell
 # 1. Backend (Python 3.14)
