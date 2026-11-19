@@ -1,6 +1,8 @@
 # EcoRevive
 
-Scan a piece of waste, see what it is, and get a practical upcycling idea or safe disposal steps.
+Scan a piece of plastic waste, see what it is, and get a practical upcycling idea, or search an item by name.
+
+**Live (preview):** https://ecorevive-khaki.vercel.app. Hosted on Vercel's free plan, plastic-only mode, model `0.1.0-preview`.
 
 - **Website** (primary): camera or photo upload → bounding boxes → pick an item → guide. React + FastAPI, one container.
 - **Android app**: Home → Camera → Results with the TFLite model running on the phone.

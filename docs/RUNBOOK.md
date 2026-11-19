@@ -1,5 +1,26 @@
 # Runbook
 
+## Live deployment (Vercel, free Hobby plan)
+
+- **Production URL:** https://ecorevive-khaki.vercel.app (project `ecorevive`).
+- **Setup:** the whole FastAPI app runs as one Vercel Function, with the website and the ONNX model bundled in.
+  - Settings: `ECOREVIVE_ENABLED_CLASSES=["Plastic"]`, `ECOREVIVE_MODEL_STATUS=preview`, `ECOREVIVE_ONNX_THREADS=1`.
+  - The Gemini key is a runtime variable of the deployment.
+- **Redeploy:** create a token at https://vercel.com/account/tokens, then run:
+  `$env:VERCEL_TOKEN="<token>"; backend\.venv\Scripts\python deploy\deploy_vercel.py`
+  The script verifies the model checksum, builds the site, deploys, and smoke-tests the live URL.
+- **Smoke test only:** `backend\.venv\Scripts\python deploy\deploy_vercel.py --smoke-only https://ecorevive-khaki.vercel.app`
+- **Rollback:** in the Vercel dashboard, open **Deployments**, pick the previous one, and choose **Promote to Production**. Or run `npx vercel@66.2.0 rollback --token <token>`.
+- **Measured on 2026-11-19:**
+  - readiness 0.87 s including a cold start
+  - scan about 1.1 s
+  - search guide from Gemini OK
+  - non-plastic guides refused (422)
+- **Limits on the free plan:**
+  - The first request after a quiet period starts a new instance, which adds about 1 second.
+  - In-memory rate limits and idempotency apply per instance.
+- **Not free:** Hugging Face Docker Spaces now require a PRO subscription, so they are not used.
+
 ## Install a model release
 
 ```powershell

@@ -140,7 +140,8 @@ def main() -> int:
     gemini = read_env_file(ROOT / "backend" / ".env").get("GEMINI_API_KEY", "")
     if gemini:
         env["GEMINI_API_KEY"] = gemini
-    with tempfile.TemporaryDirectory() as tmp:
+    # The Vercel CLI can keep the folder locked briefly on Windows, so cleanup errors are ignored.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         project = Path(tmp) / "ecorevive"
         stage(project)
         url = deploy(project, token, env)
