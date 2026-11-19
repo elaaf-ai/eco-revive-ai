@@ -1,4 +1,12 @@
-# Model card: EcoRevive detector `0.1.0-preview`
+# Model card: EcoRevive detector
+
+> **Live model: `0.2.0-preview-small`.**
+> - YOLO11s, trained on `taco-5class-v2` on a Kaggle T4, 60 epochs.
+> - Locked test: photo-level plastic accuracy 68.1%, balanced 56.8%, Plastic AP@0.50 0.353. Below the 85% target.
+> - See EVALUATION.md.
+> - The app shows Plastic only. The earlier `0.1.0-preview` described below is kept for rollback.
+
+## `0.1.0-preview`
 
 - **Task:** object detection of waste in photos. Classes: Plastic, Glass, Metal, Organic, Hazardous.
 - **Architecture:** Ultralytics YOLO11, fine-tuned from COCO-pretrained weights at 640 px. The selected checkpoint is 19 MB, which matches YOLO11s; confirm with the notebook's candidate output.

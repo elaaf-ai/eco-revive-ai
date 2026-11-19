@@ -1,6 +1,47 @@
 # Evaluation
 
-The target is **mAP@0.50 of at least 0.85 on the locked held-out test split.** Only results measured on that split count toward the target.
+The original target was **mAP@0.50 of at least 0.85 on the locked held-out test split.** After the product became plastic-only, the team set the target as **85% photo-level accuracy for "does this photo contain plastic?"**. Balanced accuracy and the "always plastic" baseline are reported next to it, so the score cannot be inflated by class imbalance. Only results measured on the locked test split count toward the target.
+
+## Current live model: `0.2.0-preview-small` (YOLO11s, taco-5class-v2, trained on Kaggle T4)
+
+**Selection:** among v1 small, v2 small and v2 nano, chosen on **validation only**. The locked test split was then run **once** (see `ml/reports/v2-small/test_ledger.jsonl`).
+
+**Training:** 60 epochs (best epoch 47), 640 px, batch 16, seed 42, about 33 minutes on one Tesla T4. The data was v1 plus 1,487 cleaned TrashNet photos (train only).
+
+### Validation (172 photos, 138 with plastic)
+
+| Model | Plastic AP@0.50 | Photo accuracy @0.25 | Balanced accuracy @0.25 | Finds plastic | Correct "no plastic" |
+|---|---|---|---|---|---|
+| v1 small (`0.1.0-preview`) | 0.434 | 72.1% | 54.9% | 83% | 26% |
+| **v2 small (selected)** | **0.467** | **80.2%** | **64.4%** | **91%** | **38%** |
+| v2 nano | 0.488 | 73.8% | 54.9% | 86% | 24% |
+
+The "always plastic" baseline on validation is 80.2%.
+
+### Locked test (210 photos, 148 with plastic), v2 small, run once
+
+| Measure | Result |
+|---|---|
+| Photo accuracy @0.25 (app setting) | **68.1%**. "Always plastic" baseline is 70.5% |
+| Balanced accuracy @0.25 | **56.8%** |
+| Photo accuracy @0.14 (threshold fixed on validation) | 72.4% (balanced 58.9%) |
+| Plastic AP@0.50 / AP@0.50:0.95 | 0.353 / 0.275 (217 objects, recall 0.50) |
+| Glass / Metal AP@0.50 | 0.024 / 0.116 |
+| 5-class mAP@0.50 / @0.50:0.95 | 0.099 / 0.074 |
+| Latency (ONNX, CPU, this laptop) | about 130 ms per image |
+
+**The 85% target is not met.**
+- The photo-level score is below the "always plastic" baseline on the test photos.
+- The model rarely says "no plastic" correctly: it called 99 real plastic objects background and 129 background regions plastic.
+- Glass and Metal improved on validation but not on the test photos. The added TrashNet photos are studio-style single objects, while the test photos are outdoor litter (TACO), so the extra data did not transfer.
+
+**What would most likely raise it:** labelled photos taken the way the app is used, with hand-held items indoors and real bins, including many photos **without** plastic. The 4-person team test sheet is a good start for these.
+
+**Export parity:** on identical 640×640 inputs, ONNX and TFLite match `best.pt` exactly (100% detections matched, confidence difference 0.0).
+
+---
+
+## Previous model: `0.1.0-preview`
 
 ## Current model: `0.1.0-preview` (YOLO11s, 640 px, trained in Colab on `taco-5class-v1`)
 

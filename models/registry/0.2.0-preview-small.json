@@ -1,0 +1,72 @@
+{
+    "version":  "0.2.0-preview-small",
+    "classes":  [
+                    "Plastic",
+                    "Glass",
+                    "Metal",
+                    "Organic",
+                    "Hazardous"
+                ],
+    "imgsz":  640,
+    "dataset_version":  "taco-5class-v2",
+    "trained_on":  "Kaggle Tesla T4, ml/kaggle/train_kernel.py, YOLO11s 60 epochs (best epoch 47)",
+    "artifacts":  {
+                      "pt":  {
+                                 "file":  "best.pt",
+                                 "bytes":  19169178,
+                                 "sha256":  "412167756106fbf93270067956bda8c1a9545e7d78e7bb1cdfde11bac1e22680"
+                             },
+                      "onnx":  {
+                                   "file":  "model.onnx",
+                                   "bytes":  37934544,
+                                   "sha256":  "2a2194bfb00d6f791eb2af4fec3734dd5de63623971ccf9d0483ee35309cc6b2"
+                               },
+                      "tflite":  {
+                                     "file":  "model.tflite",
+                                     "bytes":  37957254,
+                                     "sha256":  "9e80ba0bbd55a33541725cf1212efc7f56f610999aca98044bba7bf7af9e5d7a"
+                                 }
+                  },
+    "parity":  {
+                   "onnx":  {
+                                "images":  50,
+                                "reference_detections":  66,
+                                "matched":  66,
+                                "match_rate":  1.0,
+                                "max_confidence_delta":  0.0,
+                                "passed":  true
+                            },
+                   "tflite":  {
+                                  "images":  50,
+                                  "reference_detections":  66,
+                                  "matched":  66,
+                                  "match_rate":  1.0,
+                                  "max_confidence_delta":  0.0,
+                                  "passed":  true
+                              }
+               },
+    "evaluation":  {
+                       "status":  "locked_test_evaluated",
+                       "architecture":  "YOLO11s",
+                       "val_onnx":  {
+                                        "map50":  0.2247,
+                                        "map50_95":  0.1694,
+                                        "plastic_ap50":  0.4667,
+                                        "photo_accuracy_at_0_25":  0.8023,
+                                        "photo_balanced_accuracy_at_0_25":  0.6441
+                                    },
+                       "locked_test":  {
+                                           "map50":  0.0985,
+                                           "map50_95":  0.0738,
+                                           "plastic_ap50":  0.3526,
+                                           "photo_accuracy_at_0_25":  0.681,
+                                           "photo_balanced_accuracy_at_0_25":  0.5675,
+                                           "photo_accuracy_at_0_14":  0.7238,
+                                           "always_plastic_baseline":  0.7048,
+                                           "report":  "ml/reports/v2-small/eval_onnx_0.2.0-preview-small_test.json"
+                                       },
+                       "locked_test_map50":  0.0985,
+                       "meets_target":  false,
+                       "notes":  "Selected over 0.1.0-preview and the nano model on validation only. Locked test run once. 85% photo-level target not met."
+                   }
+}

@@ -16,12 +16,12 @@ test.skip(!photos.every((p) => fs.existsSync(p)), "Validation photos not availab
 
 test("real model: upload, real boxes, guide", async ({ page }, info) => {
   await page.goto("/#/scan");
-  await expect(page.getByText(/Model 0\.1\.0-preview/)).toBeVisible();
+  await expect(page.getByText(/Model \d+\.\d+\.\d+-preview/)).toBeVisible();
 
   const response = page.waitForResponse("**/v1/detect");
   await page.locator('input[type="file"]').setInputFiles(photos[0]!);
   const body = await (await response).json();
-  expect(body.model.version).toBe("0.1.0-preview");
+  expect(body.model.version).toMatch(/^\d+\.\d+\.\d+-preview/);
 
   if (body.detections.length === 0) {
     await expect(page.getByRole("heading", { name: "Nothing recognised" })).toBeVisible();
