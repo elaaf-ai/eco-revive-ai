@@ -37,6 +37,12 @@ All 27 items are addressed. Each fix has a regression test unless noted.
 | B-26 | `validate_dataset.py` accepts `names` as a list or dict. `evaluate_onnx.py` exits with a clear message on an empty split | `test_b26_*` |
 | B-27 | Export parity now checks both directions: extra detections in the export fail the check. In `prepare_taco.py`, photos whose only objects are out of scope are **kept as negatives by design**, so the detector learns that cartons and paper are not plastic. This is now an explicit, recorded option (`--out-of-scope-only keep\|drop`) | `test_b27_*` |
 
+## Found while verifying on the emulator
+
+- **Android model input layout.** The exported TFLite model takes channels-first input `[1, 3, 640, 640]`, and the app accepted only `[1, 640, 640, 3]`. The APK would have shown "model not available" on every phone. The app now supports both layouts.
+- **Emulator result after the fix (photo `batch_6_000017`):** Plastic 0.69 / 0.60 / 0.37 on the phone, against 0.70 / 0.59 / 0.39 from the website's ONNX model.
+- **APK:** rebuilt.
+
 ## Verified locally
 
 | Check | Result |

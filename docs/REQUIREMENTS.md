@@ -1,49 +1,42 @@
 # Requirements checklist
 
-Maps the *Mid year evaluation Action plan* (`docs/inputs/`) and the project brief to what was built and how it was checked. Status as of 2026-11-19.
+Maps the *Mid year evaluation Action plan* (`docs/inputs/`) and the project brief to what was built and how it was checked. Updated 2026-11-21.
 
 **Legend:**
 - ✅ Done and verified
-- 🟡 Built, but verification is blocked or partial
-- ⛔ Blocked on an external input
-- ⬜ Not started
+- 🟡 Done, but one check is still open
+- 🔴 Not met or not started
+
+**Scope change (team decision):** the product is now **plastic-only**. The model still predicts five classes, but only Plastic is shown (`shared/product.json`). The 85% target is now **photo-level "does this photo contain plastic"**, judged with balanced accuracy.
 
 ## Action plan phases
 
-| # | Requirement | Status | Implementation | Verification |
-|---|---|---|---|---|
-| 0.1 | GitHub repo `eco-revive-ai`, 4 collaborators | ⛔ | Local git repo with 5 commits | Pushing needs GitHub sign-in on this PC; collaborators need GitHub usernames |
-| 0.2 | Shared Drive for datasets and models | ✅ | `My Drive/FYP/ecorevive/` holds the bundle, runs and artifacts | Colab run completed |
-| 1 | TACO + TrashNet merged into 5 classes, YOLO format | 🟡 | TACO mapped with `ml/configs/taco_mapping_v1.yaml`. TrashNet excluded because it has no boxes | `validate_dataset.py`: 0 errors. Organic and Hazardous are too sparse |
-| 2 | Train YOLO11 in Colab, `best.pt` | ✅ | `ml/notebooks/ecorevive_train.ipynb`, using the Nano and Small baselines from `fyp.ipynb` | Export manifest with checksums |
-| 2.9 | Check mAP | ⛔ | `ml/scripts/evaluate.py`, with a locked test ledger | Validation and test numbers not yet reported back from Colab |
-| 3 | Export TFLite | 🟡 | `export_model.py`: ONNX + TFLite + parity check | Exported. Parity re-check pending (first check was flawed, now fixed) |
-| 4 | Flutter app: Home → Camera → Result | ✅ | `mobile/` | `flutter analyze` clean, 10 tests pass, APK runs on the API 37 emulator |
-| 4.4 | Real TFLite detection in the app | 🟡 | `lib/detection/` runs decode, rotation, letterbox, TFLite and NMS in an isolate | Unit-tested. On-device run needs `model.tflite` copied into `assets/model/` |
-| 5 | Gemini `get_upcycling_guide(category)` | 🟡 | `backend/app/guides.py` uses the `google-genai` SDK, `client.aio.interactions.create`, model `gemini-3.5-flash-lite` (configurable) | Mocked tests pass. A live call needs `GEMINI_API_KEY` |
-| 6 | Live demo: camera in, guide out | 🟡 | Web: live preview + capture → boxes → guide. Android: capture → boxes → guide | Full flow passes in Playwright with the fixture model. A real-model run needs the ONNX file |
-| 7 | Methodology, architecture diagram | ✅ | `docs/ARCHITECTURE.md`, `DATASET.md`, `MODEL_CARD.md` | |
-| 8 | Team test: 4 people × 10 objects, fix and retest | ⬜ | `docs/TEAM_TEST_PLAN.md`, `docs/team_test_sheet.csv` | Sheet is empty on purpose: record only real tests |
-| 9 | Demo rehearsal, timing, Gantt | 🟡 | `docs/DEMO.md` | Rehearsal not yet held |
+| # | Requirement | Status | Evidence |
+|---|---|---|---|
+| 0.1 | GitHub repo `eco-revive-ai`, 4 collaborators | 🟡 | Private repo `elaaf-ai/eco-revive-ai`, all work pushed. Collaborators still need to be added by Elaaf |
+| 0.2 | Shared storage for data and models | ✅ | Google Drive plus a private Kaggle dataset |
+| 1 | TACO + TrashNet dataset, YOLO format | ✅ | `taco-5class-v1` and `v2`: 2,328 train, 172 val and 210 test photos, 0 validation errors (`docs/DATASET.md`) |
+| 2 | Train YOLO11 on a GPU, `best.pt` | ✅ | v2 YOLO11s, 60 epochs on a Kaggle T4. Training log and results in `ml/artifacts/0.2.0-preview-small/` |
+| 2.9 | Check mAP | ✅ | Validation and a single locked test run (`docs/EVALUATION.md`) |
+| 3 | Export TFLite | ✅ | ONNX and TFLite match `best.pt` exactly (100% of detections matched, confidence difference 0.0) |
+| 4 | Flutter app: Home → Camera → Result | 🟡 | APK built with the v2 model. Tests and analysis pass. A **real-phone camera test** is still open |
+| 4.4 | Real TFLite detection in the app | 🟡 | Runs on device in a background isolate. Emulator test in `mobile/integration_test/`. A real-phone test is still open |
+| 5 | Gemini upcycling guides | ✅ | Live on the website. Hazardous items always get curated disposal steps |
+| 6 | Live demo: camera in, guide out | ✅ | https://ecorevive-ai.vercel.app (HTTPS, works on phones) |
+| 7 | Methodology, architecture diagram | ✅ | `docs/ARCHITECTURE.md`, `DATASET.md`, `MODEL_CARD.md`, `EVALUATION.md` |
+| 8 | Team test: 4 people × 10 objects, fix and retest | 🔴 | Sheet ready at `docs/team_test_sheet.csv`. Only the team can run the tests |
+| 9 | Demo rehearsal, timing, Gantt | 🔴 | Script in `docs/DEMO.md`. The rehearsal is the team's |
 
-## Product and engineering brief
+## Product and engineering
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Five canonical classes everywhere | ✅ | `shared/classes.json`, checked by ML tests, the backend at model load, ONNX metadata, and a Flutter test |
-| Web: Home, Scan, Results; webcam, phone camera and upload | ✅ | Playwright at 390, 768 and 1440 px with Chrome's fake camera |
-| Permission denied, no camera, insecure context, no detections, low confidence, ambiguous, busy, slow, model offline | ✅ | Unit and e2e tests; screenshots in `docs/screenshots/` |
-| Sustainable frame sampling, stale responses dropped, camera stopped on leave | ✅ | `Scanner.tsx` live loop; e2e checks camera tracks stop on leaving |
-| Hazardous → curated guidance; glass and metal precautions; "photo can't confirm safety" | ✅ | `test_guides.py`, `ResultsPanel.test.tsx`, Flutter tests |
-| Original visual design, keyboard, focus, live announcements, reduced motion | ✅ | Screenshots reviewed by eye; keyboard e2e test; `prefers-reduced-motion` rule |
-| Typed, versioned API with OpenAPI; liveness and readiness | ✅ | `/docs`, `/healthz`, `/readyz`; contract tests |
-| Model warmed once, inference off the event loop, bounded queue, timeouts, 503 when overloaded | ✅ | `test_api.py`; load test: 375 of 400 rejected cleanly at 16 concurrent clients |
-| Idempotency: scoped keys, fingerprint, in-flight coalescing, TTL, reuse rejected | ✅ | `test_api.py` (replay, concurrent duplicates, key reuse, failures not stored) |
-| Upload limits, decode validation, pixel cap, metadata stripped, images not stored | ✅ | `test_imaging_detector.py` |
-| Secrets server-side, `.env.example`, structured logs, request IDs, metrics | ✅ | `config.py`, `observability.py`, `/v1/metrics` |
-| Model checksums, versioned registry, checksum-verified install | ✅ | `models/registry/`, `fetch_model.py` refuses a mismatch (tested) |
-| CI for lint, tests and builds; manual GPU training; gated release; rollback | 🟡 | Workflows written. Not run until the repo is on GitHub |
-| Docker image | 🟡 | Dockerfile and compose written. Docker is not installed here, so the image hasn't been built locally; CI builds it |
-| ≥ 0.85 mAP@0.50 on the locked test split | ⛔ | Not evaluated. Likely to miss until Organic and Hazardous data is collected |
-| HTTPS deployment, phone camera test over HTTPS | ⛔ | Needs a hosting choice and account |
-| Release APK | 🟡 | `app-release.apk` (68.7 MB) built, debug-signed, without the model |
+| Website: Home, Scan, Results; webcam, phone camera, upload | ✅ | 45 browser checks at 390, 768 and 1440 px |
+| Item codes (001–014): recycling and upcycling methods by code | ✅ | `shared/plastic_catalog.json`, live search bar |
+| Error states: permission denied, no camera, no detections, uncertain, busy, slow, offline | ✅ | Unit and browser tests |
+| Safety: hazardous items get disposal steps (including typed names), glass and metal precautions, "a photo can't confirm safety" | ✅ | `test_qa_regressions.py` (B-01, B-02) |
+| Typed, versioned API, health and readiness checks, overload handling, idempotent retries, rate limits | ✅ | 88 backend tests |
+| QA bug report, 27 items | 🟡 | All fixed with regression tests (`docs/QA_FIXES.md`). B-16 and B-17 still need a phone test |
+| Free HTTPS deployment | ✅ | Vercel Hobby plan, smoke-tested after each deploy |
+| CI: lint, tests, builds, gated release, rollback | 🟡 | Workflows are in the repo. The latest CI result has to be confirmed on GitHub's Actions page |
+| **85% photo-level accuracy** | 🔴 | Locked test: 68.1% plain accuracy (the "always plastic" baseline is 70.5%) and 56.8% balanced accuracy. Needs real, team-taken photos |

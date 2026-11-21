@@ -34,8 +34,9 @@ img.Image? decodeUpright(Uint8List bytes) {
   return upright;
 }
 
-/// Letterbox to size x size and produce NHWC float32 in 0..1, as Ultralytics TFLite expects.
-Float32List letterboxTensor(img.Image source, Letterbox lb) {
+/// Letterbox to size x size as float32 in 0..1. [channelsFirst] gives NCHW ([1, 3, H, W], what this
+/// project's Ultralytics TFLite export uses); otherwise NHWC ([1, H, W, 3]).
+Float32List letterboxTensor(img.Image source, Letterbox lb, {bool channelsFirst = false}) {
   final resized = img.copyResize(
     source,
     width: lb.scaledWidth,
@@ -48,10 +49,18 @@ Float32List letterboxTensor(img.Image source, Letterbox lb) {
     final row = (y + lb.padY) * size;
     for (var x = 0; x < resized.width; x++) {
       final pixel = resized.getPixel(x, y);
-      final offset = (row + x + lb.padX) * 3;
-      tensor[offset] = pixel.r / 255.0;
-      tensor[offset + 1] = pixel.g / 255.0;
-      tensor[offset + 2] = pixel.b / 255.0;
+      final index = row + x + lb.padX;
+      if (channelsFirst) {
+        final plane = size * size;
+        tensor[index] = pixel.r / 255.0;
+        tensor[plane + index] = pixel.g / 255.0;
+        tensor[2 * plane + index] = pixel.b / 255.0;
+      } else {
+        final offset = index * 3;
+        tensor[offset] = pixel.r / 255.0;
+        tensor[offset + 1] = pixel.g / 255.0;
+        tensor[offset + 2] = pixel.b / 255.0;
+      }
     }
   }
   return tensor;
@@ -63,6 +72,7 @@ Future<ScanResult> runScan({
   required Uint8List photo,
   required int inputSize,
   required List<int> outputShape,
+  bool channelsFirst = false,
   required int numClasses,
   double confThreshold = 0.25,
 }) {
@@ -70,7 +80,7 @@ Future<ScanResult> runScan({
     final image = decodeUpright(photo);
     if (image == null) throw const FormatException('The photo could not be read.');
     final lb = Letterbox.fit(image.width, image.height, inputSize);
-    final input = letterboxTensor(image, lb);
+    final input = letterboxTensor(image, lb, channelsFirst: channelsFirst);
     final outputLength = outputShape.reduce((a, b) => a * b);
     final output = Float32List(outputLength);
 

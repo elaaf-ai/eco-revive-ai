@@ -1,34 +1,37 @@
 # Evaluation demo and timeline
 
-## Live demo (target: 4 minutes)
+**Live site:** https://ecorevive-ai.vercel.app. Open it 2 minutes before you present, because the first visit after a quiet period takes a few extra seconds.
 
-1. **Home (20 s).** State what it does and the five classes. Point to the model status line at the bottom. It says "preview" until the locked test passes. Be upfront about it.
-2. **Live camera (60 s).** Open Scan, start the camera, and hold up a plastic bottle. The live preview draws boxes about once a second.
-3. **Capture and choose (40 s).** Capture a photo with a bottle and a can together. Two items are listed; select the can.
-4. **Guide (40 s).** Show the steps and the sharp-edge precautions that are always added for metal, and read out the source label: AI-generated or curated.
-5. **Safety (40 s).** Scan a battery. It gets the curated disposal guide, never a craft project. Then show an uncertain scan, where the app asks you to confirm the material before giving a guide.
-6. **Android (40 s).** Repeat the capture on the phone app. Inference runs on the phone, so it works without internet.
+## Live demo (about 4 minutes)
 
-**Backup plan:** keep screenshots of each step (`docs/screenshots/`) and a few test photos on the laptop, in case the venue has no network or camera.
+1. **Home (20 s).** EcoRevive finds plastic waste and gives recycling and upcycling steps. Point out the model status line at the bottom: it says "preview", and say why.
+2. **Scan (60 s).** Open **Scan** and start the camera, then hold up a plastic bottle and press the shutter. Boxes appear around the plastic, and other items are ignored.
+3. **Guide (40 s).** Select the item. Show the upcycling steps, the precautions and the source label (AI-generated or curated).
+4. **Item codes (40 s).** Type **001** in the search bar to show the water bottle's recycling steps and upcycling project. Open **All item codes** to show the 14 codes, then press **Another upcycling idea**.
+5. **Safety (30 s).** Type "lithium battery" in the search. It gives **safe disposal steps**, never a craft idea. Then show an uncertain scan, where the app asks "Is this item plastic?" before giving a guide.
+6. **Android (40 s).** Open the APK on a phone and scan the same bottle. Detection runs on the phone itself.
+
+**Backup:** keep the screenshots in `docs/screenshots/` and a few test photos on the laptop, in case the venue has no network or camera.
 
 ## What each person explains
 
-- **Person A (model):** how the dataset was built and split by collection batch, why YOLO11, how the test split is kept locked, and current results and gaps (DATASET.md, EVALUATION.md).
-- **Person B (app):** web and Flutter screens, the camera handling, and how boxes are mapped back onto the photo.
-- **Person C (GenAI):** why Gemini, the structured output with schema validation, the curated fallback, and the hazardous rule.
-- **Person D (report and testing):** the test sheet results, the fixes made, the methodology chapter and the architecture diagram.
+- **Model:** the dataset and its photo-batch splits, Kaggle GPU training, how v2 was chosen on validation, and why the locked test (68%) misses the 85% target. Real-use photos are the next step. See `EVALUATION.md`.
+- **App:** the website and Android screens, camera handling, item codes and the plastic-only mode.
+- **GenAI:** Gemini structured guides, the "different idea" variants, curated fallbacks and the hazardous safety rule.
+- **Report and testing:** the QA bug report (27 fixes), the team test sheet, methodology and the architecture diagram.
 
-## Updated timeline
+## Timeline
 
-| Week | Planned (action plan) | Actual status |
+| Phase | Planned | Status |
 |---|---|---|
-| 0 | Setup, GitHub, Drive, roles | Drive done. GitHub repo exists locally, not yet pushed |
-| 1–2 | Dataset | TACO 5-class dataset built and validated. Organic and Hazardous are too sparse |
-| 3–5 | Train in Colab | Preview model trained and exported |
-| 6 | TFLite export | Exported. Parity re-check pending |
-| 3–7 | Flutter app | Built, tested, APK runs on the emulator. Needs the model file |
-| 3–7 | Gemini guides | Built with fallback and safety rules. Needs an API key for live use |
-| 7–9 | Integration and live demo | Web flow done end to end with the fixture model. Real model and hosting pending |
-| next | Collect about 200 Organic and 200 Hazardous labeled objects, retrain, run the locked test once | Not started |
-| 10–11 | Team test (4 × 10 objects), fixes, retest | Not started |
-| 12 | Rehearsal, timing | Not started |
+| Setup | GitHub, Drive, roles | Done. Collaborators still to be added |
+| Data | TACO + TrashNet in Roboflow | Done (v1 and v2 datasets) |
+| Training | YOLO11 on a GPU | Done (v2 on Kaggle T4) |
+| Export | TFLite | Done, with an exact match to the original model |
+| App | Flutter + website | Done: live website and APK built |
+| GenAI | Gemini guides | Done, live |
+| Integration | Camera in, guide out | Done, live |
+| QA | Bug report and fixes | Done (27 of 27) |
+| Testing | 4 × 10 real objects | **To do (team)** |
+| Accuracy | 85% target | **Not met (68%)**. Needs team-collected photos and retraining |
+| Rehearsal | Timed run-through | **To do (team)** |

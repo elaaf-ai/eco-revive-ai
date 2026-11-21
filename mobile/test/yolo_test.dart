@@ -96,6 +96,14 @@ void main() {
     expect(tensor[0], closeTo(114 / 255, 1e-6)); // left padding
     final centre = (32 * 64 + 32) * 3;
     expect(tensor[centre], greaterThan(0.9)); // red channel of the photo
+
+    // The exported TFLite model is NCHW: three full planes, red first.
+    final chw = letterboxTensor(upright, Letterbox.fit(upright.width, upright.height, 64), channelsFirst: true);
+    const plane = 64 * 64;
+    expect(chw[0], closeTo(114 / 255, 1e-6));
+    expect(chw[32 * 64 + 32], greaterThan(0.9)); // red plane
+    expect(chw[plane + 32 * 64 + 32], lessThan(0.1)); // green plane
+    expect(chw[2 * plane + 32 * 64 + 32], lessThan(0.1)); // blue plane
   });
 
   group('shared data', () {
