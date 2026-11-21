@@ -25,4 +25,4 @@ COPY --chown=user backend/app/ ./app/
 COPY --chown=user models/current/ /home/user/app/models/current/
 COPY --chown=user --from=web /web/dist /home/user/app/web/dist
 EXPOSE 7860
-CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "7860", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips=*", "--timeout-graceful-shutdown", "20"]
+CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "7860", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips=127.0.0.1", "--timeout-graceful-shutdown", "20"]

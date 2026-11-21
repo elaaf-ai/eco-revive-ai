@@ -7,6 +7,7 @@ import type { Readiness, WasteClass } from "./types";
 type Route = "home" | "scan";
 
 const routeFromHash = (): Route => (window.location.hash === "#/scan" ? "scan" : "home");
+const isRouteHash = (hash: string) => hash === "" || hash === "#" || hash.startsWith("#/");
 
 function ModelStatus({ readiness }: { readiness: Readiness | null }) {
   if (!readiness) return <span className="model-status">Checking model…</span>;
@@ -28,15 +29,31 @@ export function App() {
   const [readiness, setReadiness] = useState<Readiness | null>(null);
 
   useEffect(() => {
-    const onHash = () => setRoute(routeFromHash());
+    const onHash = () => {
+      if (isRouteHash(window.location.hash)) setRoute(routeFromHash());
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetchReadiness(controller.signal).then(setReadiness);
-    return () => controller.abort();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+    const check = async () => {
+      const result = await fetchReadiness(controller.signal);
+      if (controller.signal.aborted) return;
+      setReadiness(result);
+      if (!result.ready) {
+        attempt += 1;
+        timer = setTimeout(() => void check(), Math.min(30_000, 2_000 * 2 ** Math.min(attempt, 4)));
+      }
+    };
+    void check();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, []);
 
   // Move focus to the new screen on navigation, but not on first load, so the skip link stays first.
@@ -55,6 +72,8 @@ export function App() {
     ? readiness.model.enabled_classes
     : ["Plastic"];
 
+  const aiAvailable = readiness?.guide_provider === "gemini";
+
   // Re-setting identical text would not be re-announced, so clear first.
   const announce = useCallback((text: string) => {
     setMessage("");
@@ -63,7 +82,14 @@ export function App() {
 
   return (
     <div className="app">
-      <a className="skip" href="#main">
+      <a
+        className="skip"
+        href="#main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+      >
         Skip to content
       </a>
       <header className="topbar">
@@ -87,9 +113,14 @@ export function App() {
 
       <main id="main" tabIndex={-1}>
         {route === "home" ? (
-          <Home onStart={() => (window.location.hash = "#/scan")} enabled={enabled} announce={announce} />
+          <Home
+            onStart={() => (window.location.hash = "#/scan")}
+            enabled={enabled}
+            announce={announce}
+            aiAvailable={aiAvailable}
+          />
         ) : (
-          <Scanner announce={announce} enabled={enabled} />
+          <Scanner announce={announce} enabled={enabled} aiAvailable={aiAvailable} />
         )}
       </main>
 

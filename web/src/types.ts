@@ -44,6 +44,8 @@ export interface GuideRequest {
   confidence: number;
   confirmed_by_user: boolean;
   item_hint?: string;
+  /** 0 is the first idea; 1-9 ask the server for a different one. */
+  variant?: number;
 }
 
 export interface Guide {

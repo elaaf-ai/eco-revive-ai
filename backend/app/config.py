@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -24,7 +25,11 @@ class Settings(BaseSettings):
     low_confidence: float = Field(0.5, ge=0.05, le=0.99)
     max_detections: int = Field(20, ge=1, le=100)
     # Classes the product shows. The model still predicts all five; others are filtered out.
-    enabled_classes: list[str] = ["Plastic"]
+    enabled_classes: list[str] = Field(
+        default_factory=lambda: json.loads((REPO_ROOT / "shared" / "product.json").read_text(encoding="utf-8"))[
+            "enabled_classes"
+        ]
+    )
     onnx_threads: int = Field(2, ge=1, le=16)
 
     # Inference capacity. One model instance per process; requests beyond
@@ -52,6 +57,12 @@ class Settings(BaseSettings):
 
     # Idempotency for retried expensive requests. In-memory: valid for a single instance.
     idempotency_ttl_s: int = 600
+
+    # Header carrying the real client IP. Set it only when the host's own proxy overwrites it
+    # (for example "x-forwarded-for" on Vercel). Unset means the socket peer address is used.
+    client_ip_header: str | None = None
+    # Bearer token for /v1/metrics. Unset hides the endpoint.
+    metrics_token: SecretStr | None = None
 
     allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     static_dir: Path | None = REPO_ROOT / "web" / "dist"

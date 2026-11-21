@@ -5,6 +5,7 @@ import time
 import httpx
 import pytest
 from conftest import image_bytes
+from pydantic import SecretStr
 
 from app.detector import RawDetection
 from app.main import create_app
@@ -159,6 +160,7 @@ async def test_overload_returns_503_with_retry_after(settings):
 
 async def test_inference_timeout_returns_504_and_keeps_slot_until_done(settings):
     settings.inference_timeout_s, settings.inference_concurrency, settings.inference_queue_depth = 0.05, 1, 0
+    settings.metrics_token = SecretStr("metrics-secret-token")
     detector = SlowDetector(0.3)
     app = create_app(settings, detector_factory=lambda s, c: detector)
     async with app.router.lifespan_context(app), await client_for(app) as client:
@@ -167,7 +169,8 @@ async def test_inference_timeout_returns_504_and_keeps_slot_until_done(settings)
         # The worker is still busy, so a new request is rejected rather than oversubscribing.
         assert (await jpeg_post(client)).status_code == 503
         await asyncio.sleep(0.35)
-        assert (await client.get("/v1/metrics")).json()["inference_in_flight"] == 0
+        metrics = await client.get("/v1/metrics", headers={"Authorization": "Bearer metrics-secret-token"})
+        assert metrics.json()["inference_in_flight"] == 0
 
 
 async def test_rate_limit(settings):

@@ -67,3 +67,20 @@ test("uncertain plastic scan asks yes or no", async ({ page }) => {
   await page.getByRole("button", { name: "Yes, it's plastic" }).click();
   await expect(page.locator("#guide-title")).toBeVisible();
 });
+
+test("B-22: a failed live scan clears the previous boxes", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/v1/detect", async (route) => {
+    calls += 1;
+    if (calls === 1) return route.fallback();
+    return route.fulfill({
+      status: 503,
+      headers: { "Retry-After": "1" },
+      json: { error: { code: "overloaded", message: "Busy", request_id: "x", retry_after_s: 1 } },
+    });
+  });
+  await page.goto("/#/scan");
+  await page.getByRole("button", { name: "Start camera" }).click();
+  await expect(page.locator(".box").first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".box")).toHaveCount(0, { timeout: 10_000 });
+});

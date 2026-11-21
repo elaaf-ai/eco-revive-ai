@@ -71,6 +71,8 @@ def main() -> int:
     config = yaml.safe_load(args.data.read_text(encoding="utf-8"))
     root = args.data.parent
     images = sorted((root / config[args.split]).glob("*.jpg"))
+    if not images:
+        parser.error(f"No .jpg images found for the {args.split} split in {root / config[args.split]}")
     detector = OnnxDetector(args.model_dir, names, conf_threshold=0.001, iou_threshold=0.7,
                             max_detections=300, threads=args.threads)
     detector.warm_up(2)

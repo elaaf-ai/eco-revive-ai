@@ -9,11 +9,14 @@ export function ItemCard({
   item,
   material,
   announce,
+  aiAvailable = false,
 }: {
   item: CatalogItem;
   material: WasteClass;
   announce: (message: string) => void;
+  aiAvailable?: boolean;
 }) {
+  const variant = useRef(0);
   const [extra, setExtra] = useState<
     { status: "idle" } | { status: "loading" } | { status: "ready"; guide: Guide } | { status: "error"; message: string }
   >({ status: "idle" });
@@ -25,9 +28,16 @@ export function ItemCard({
     const current = new AbortController();
     controller.current = current;
     setExtra({ status: "loading" });
+    variant.current = (variant.current % 9) + 1;
     try {
       const response = await fetchGuide(
-        { class_name: material, confidence: 1, confirmed_by_user: true, item_hint: item.name },
+        {
+          class_name: material,
+          confidence: 1,
+          confirmed_by_user: true,
+          item_hint: item.name,
+          variant: variant.current,
+        },
         current.signal,
       );
       setExtra({ status: "ready", guide: response.guide });
@@ -96,11 +106,6 @@ export function ItemCard({
         Recycling rules differ between areas, so check your council's list. {item.safety_notice}
       </p>
 
-      {extra.status === "idle" && (
-        <button type="button" className="btn btn-ghost" onClick={() => void moreIdeas()}>
-          <Sparkles size={16} aria-hidden /> Another upcycling idea
-        </button>
-      )}
       {extra.status === "loading" && (
         <p className="loading" role="status">
           <Loader2 className="spin" size={18} aria-hidden /> Thinking of another idea…
@@ -108,6 +113,11 @@ export function ItemCard({
       )}
       {extra.status === "error" && <p className="notice notice-error">{extra.message}</p>}
       {extra.status === "ready" && <GuideCard guide={extra.guide} cached={false} />}
+      {aiAvailable && extra.status !== "loading" && (
+        <button type="button" className="btn btn-ghost" onClick={() => void moreIdeas()}>
+          <Sparkles size={16} aria-hidden /> {extra.status === "ready" ? "Show a different idea" : "Another upcycling idea"}
+        </button>
+      )}
     </article>
   );
 }

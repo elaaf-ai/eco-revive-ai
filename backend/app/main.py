@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import logging
 import time
@@ -47,12 +48,14 @@ from .schemas import (
 
 logger = logging.getLogger("ecorevive.api")
 CLIENT_ID_HEADER = "X-Client-Id"
+MODEL_RETRY_BASE_S = 5
+MODEL_RETRY_MAX_S = 300
 ERRORS: dict[int | str, dict[str, Any]] = {
     code: {"model": ErrorResponse} for code in (400, 409, 413, 415, 422, 429, 503, 504)
 }
 CSP = (
     "default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; "
-    "style-src 'self'; script-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+    "style-src 'self'; script-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'"
 )
 
 
@@ -138,10 +141,10 @@ def create_app(
     async def ensure_model(app: FastAPI) -> None:
         """Load and warm the model once per process. Called at startup and, on serverless hosts
         that skip startup events, on the first request."""
-        if app.state.detector is not None or app.state.model_attempted:
+        if app.state.detector is not None or time.monotonic() < app.state.model_retry_at:
             return
         async with model_lock:
-            if app.state.detector is not None or app.state.model_attempted:
+            if app.state.detector is not None or time.monotonic() < app.state.model_retry_at:
                 return
             try:
                 detector = await asyncio.to_thread(factory, settings, classes)
@@ -149,11 +152,13 @@ def create_app(
                 app.state.detector = detector
                 app.state.model_error = None
                 log(logger, "model_ready", version=detector.version, warm_up_ms=round(warm_ms, 1))
-            except (ModelLoadError, OSError, ValueError) as exc:
-                app.state.model_error = str(exc)
-                log(logger, "model_unavailable", logging.ERROR, reason=str(exc))
-            finally:
-                app.state.model_attempted = True
+            except Exception as exc:  # any bad artifact or manifest: report 503, never crash startup
+                app.state.model_failures += 1
+                backoff = min(MODEL_RETRY_MAX_S, MODEL_RETRY_BASE_S * 2 ** (app.state.model_failures - 1))
+                app.state.model_retry_at = time.monotonic() + backoff
+                reason = str(exc) if isinstance(exc, ModelLoadError) else f"{type(exc).__name__}: {exc}"
+                app.state.model_error = reason
+                log(logger, "model_unavailable", logging.ERROR, reason=reason, retry_in_s=backoff)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -171,7 +176,8 @@ def create_app(
     app.state.metrics = metrics
     app.state.detector = None
     app.state.model_error = "Model is loading."
-    app.state.model_attempted = False
+    app.state.model_failures = 0
+    app.state.model_retry_at = 0.0
     app.state.gate = InferenceGate(
         settings.inference_concurrency, settings.inference_queue_depth, settings.inference_timeout_s
     )
@@ -197,11 +203,16 @@ def create_app(
         token = request_id_var.set(request_id)
         started = time.perf_counter()
         try:
-            response = await call_next(request)
+            try:
+                response = await call_next(request)
+            except Exception as exc:
+                log(logger, "unhandled_error", logging.ERROR, error=type(exc).__name__, path=request.url.path)
+                response = error_response(500, "internal_error", "Something went wrong. Try again.")
         finally:
             request_id_var.reset(token)
         elapsed = (time.perf_counter() - started) * 1000
-        response.headers["X-Request-ID"] = request_id
+        if "x-request-id" not in response.headers:
+            response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
@@ -243,6 +254,10 @@ def create_app(
         return client_id if REQUEST_ID_PATTERN.match(client_id) else f"ip:{host}"
 
     def rate_key(request: Request) -> str:
+        if settings.client_ip_header:
+            forwarded = request.headers.get(settings.client_ip_header, "").split(",")[0].strip()
+            if forwarded:
+                return forwarded
         return request.client.host if request.client else "unknown"
 
     def model_info() -> ModelInfo:
@@ -317,7 +332,7 @@ def create_app(
         await ensure_model(app)
         if app.state.detector is None:
             raise ApiError(503, "model_unavailable", "The detection model is not available.", retry_after_s=30)
-        content_type = request.headers.get("content-type", "").split(";")[0].strip()
+        content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
         if content_type not in {"image/jpeg", "image/png", "image/webp"}:
             raise ApiError(415, "unsupported_media_type", "Send the image as image/jpeg, image/png or image/webp.")
         data = await read_body(request)
@@ -371,14 +386,17 @@ def create_app(
         result, replayed = await app.state.idempotency.run(client_of(request), endpoint, key, fingerprint, produce)
         if replayed:
             metrics.incr(f"idempotent_replay_{endpoint}")
-        return JSONResponse(result.model_dump(mode="json"), headers={"Idempotent-Replayed": str(replayed).lower()})
+        headers = {"Idempotent-Replayed": str(replayed).lower()}
+        if replayed:
+            headers["X-Request-ID"] = result.request_id
+        return JSONResponse(result.model_dump(mode="json"), headers=headers)
 
     catalog = Catalog()
 
     @app.get("/v1/items", tags=["items"])
     async def list_items(q: str | None = None) -> dict:
         """All coded items, or those matching a code, name or alias."""
-        items = catalog.search(q) if q else catalog.items
+        items = catalog.search(q) if q and q.strip() else catalog.items
         return {
             "version": catalog.version,
             "items": [CatalogSummary.model_validate(i.model_dump()).model_dump() for i in items],
@@ -391,8 +409,12 @@ def create_app(
             raise ApiError(404, "item_not_found", f"No item has the code {code.strip()[:10]}.")
         return {**item.model_dump(), "safety_notice": SAFETY_NOTICE, "catalog_version": catalog.version}
 
-    @app.get("/v1/metrics", tags=["ops"])
-    async def get_metrics():
+    @app.get("/v1/metrics", tags=["ops"], include_in_schema=False)
+    async def get_metrics(request: Request):
+        token = settings.metrics_token.get_secret_value() if settings.metrics_token else ""
+        supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        if not token or not hmac.compare_digest(supplied, token):
+            raise ApiError(404, "not_found", "Not found.")
         snapshot = metrics.snapshot()
         snapshot["inference_in_flight"] = app.state.gate.in_flight
         return snapshot
@@ -403,11 +425,18 @@ def create_app(
 
         @app.get("/{path:path}", include_in_schema=False)
         async def spa(path: str):
-            candidate = (static_dir / path).resolve()
-            if path and candidate.is_file() and candidate.is_relative_to(static_dir.resolve()):
-                return FileResponse(candidate)
+            if "\x00" in path:
+                raise ApiError(404, "not_found", "Not found.")
+            try:
+                candidate = (static_dir / path).resolve()
+                if path and candidate.is_file() and candidate.is_relative_to(static_dir.resolve()):
+                    return FileResponse(candidate)
+            except (ValueError, OSError):
+                raise ApiError(404, "not_found", "Not found.") from None
             if path.startswith(("v1/", "api/")):
                 raise ApiError(404, "not_found", "Unknown API route.")
+            if "." in Path(path).name:
+                raise ApiError(404, "not_found", "Not found.")
             return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-cache"})
 
     return app

@@ -29,4 +29,4 @@ RUN mkdir -p /app/models/current && chown -R app /app/models
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status==200 else 1)"
-CMD ["sh", "-c", "if [ -n \"$MODEL_VERSION\" ] && [ ! -f /app/models/current/model.onnx ]; then python scripts/fetch_model.py --version \"$MODEL_VERSION\" --out /app/models/current || exit 1; fi; exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 20"]
+CMD ["sh", "-c", "if [ -n \"$MODEL_VERSION\" ] && [ ! -f /app/models/current/model.onnx ]; then python scripts/fetch_model.py --version \"$MODEL_VERSION\" --out /app/models/current || exit 1; fi; exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-127.0.0.1} --timeout-graceful-shutdown 20"]

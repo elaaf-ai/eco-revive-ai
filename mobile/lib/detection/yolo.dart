@@ -142,11 +142,14 @@ NormBox _toSource(double x1, double y1, double x2, double y2, Letterbox lb) {
 enum ScanQuality { ok, noDetections, lowConfidence, ambiguous }
 
 /// Mirrors the backend's assess(): flags scans that need a retake or confirmation.
-ScanQuality assessScan(List<Detection> detections, {double lowConfidence = 0.5}) {
+/// [competitors] may include hidden classes, so an overlapping, equally likely box of another
+/// class still makes the scan ambiguous.
+ScanQuality assessScan(List<Detection> detections, {double lowConfidence = 0.5, List<Detection>? competitors}) {
   if (detections.isEmpty) return ScanQuality.noDetections;
   final ranked = [...detections]..sort((a, b) => b.confidence.compareTo(a.confidence));
   final top = ranked.first;
-  for (final other in ranked.skip(1)) {
+  for (final other in competitors ?? ranked.skip(1)) {
+    if (identical(other, top)) continue;
     if (other.classId != top.classId && iou(top.box, other.box) > 0.6 && top.confidence - other.confidence < 0.15) {
       return ScanQuality.ambiguous;
     }

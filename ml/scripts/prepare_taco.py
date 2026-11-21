@@ -36,6 +36,13 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=Path(f"ml/data/processed/{DATASET_VERSION}"))
     parser.add_argument("--manifest-dir", type=Path, default=Path("ml/manifests"))
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--out-of-scope-only",
+        choices=["keep", "drop"],
+        default="keep",
+        help="Photos whose only objects are out of scope (paper, cartons, cigarettes...). 'keep' uses them as "
+        "negatives so the detector learns these are not plastic/glass/metal; 'drop' removes them.",
+    )
     args = parser.parse_args()
 
     names = canonical_names()
@@ -88,6 +95,10 @@ def main() -> int:
                 continue
             labels.append((class_id, *box))
 
+        if not labels and anns:
+            excluded["out_of_scope_only_kept" if args.out_of_scope_only == "keep" else "out_of_scope_only_dropped"] += 1
+            if args.out_of_scope_only == "drop":
+                continue
         records[key] = {
             "image": decoded,
             "labels": labels,
@@ -156,6 +167,7 @@ def main() -> int:
         "dataset_version": DATASET_VERSION,
         "mapping_version": mapping.version,
         "seed": args.seed,
+        "out_of_scope_only": args.out_of_scope_only,
         "annotations_sha256": hashlib.sha256(annotations_path.read_bytes()).hexdigest(),
         "source_commit": (args.raw / "SOURCE_COMMIT.txt").read_text(encoding="utf-8").strip(),
         "batch_assignment": dict(sorted(assignment.items())),

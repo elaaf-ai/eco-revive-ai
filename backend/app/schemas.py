@@ -62,6 +62,7 @@ class GuideRequest(BaseModel):
     confidence: float = Field(ge=0, le=1)
     confirmed_by_user: bool = False
     item_hint: str | None = Field(None, max_length=60, description="Optional user-provided item name")
+    variant: int = Field(0, ge=0, le=9, description="Ask for a different idea for the same item (0 = first idea)")
 
 
 class Guide(BaseModel):

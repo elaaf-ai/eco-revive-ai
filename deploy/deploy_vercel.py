@@ -134,6 +134,8 @@ def main() -> int:
         "ECOREVIVE_ENABLED_CLASSES": '["Plastic"]',
         "ECOREVIVE_MODEL_STATUS": "preview",
         "ECOREVIVE_ONNX_THREADS": "1",
+        # Vercel overwrites X-Forwarded-For with the real client IP, so it is safe to trust here.
+        "ECOREVIVE_CLIENT_IP_HEADER": "x-forwarded-for",
         "ECOREVIVE_GEMINI_MODEL": "gemini-3.5-flash-lite",
         "ECOREVIVE_LOG_LEVEL": "INFO",
     }

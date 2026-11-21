@@ -12,10 +12,12 @@ export function Home({
   onStart,
   enabled,
   announce,
+  aiAvailable = false,
 }: {
   onStart: () => void;
   enabled: WasteClass[];
   announce: (message: string) => void;
+  aiAvailable?: boolean;
 }) {
   const single = enabled.length === 1 ? enabled[0] : undefined;
   return (
@@ -40,7 +42,7 @@ export function Home({
       </section>
 
       {single ? (
-        <GuideSearch material={single} announce={announce} />
+        <GuideSearch material={single} announce={announce} aiAvailable={aiAvailable} />
       ) : (
         <section className="class-grid" aria-labelledby="classes-title">
           <h2 id="classes-title" className="section-title">

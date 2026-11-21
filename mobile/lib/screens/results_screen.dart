@@ -22,17 +22,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Future<Guide>? _guide;
 
   List<String> get _classes => widget.services.shared.classes;
-  ScanQuality get _quality => assessScan(widget.result.detections);
+  List<String> get _enabled => widget.services.shared.enabledClasses;
+  late final List<Detection> _shown = [
+    for (final d in widget.result.detections)
+      if (_enabled.contains(_classes[d.classId])) d,
+  ];
+  ScanQuality get _quality => assessScan(_shown, competitors: widget.result.detections);
   bool get _uncertain => _quality == ScanQuality.lowConfidence || _quality == ScanQuality.ambiguous;
 
   @override
   void initState() {
     super.initState();
-    if (widget.result.detections.length == 1) _select(0);
+    if (_shown.length == 1) _select(_shown.first.id);
   }
 
   void _select(int id) {
-    final detection = widget.result.detections.firstWhere((d) => d.id == id);
+    final detection = _shown.firstWhere((d) => d.id == id);
     setState(() {
       _selected = id;
       _material = _classes[detection.classId];
@@ -42,7 +47,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   void _confirm() {
-    final detection = widget.result.detections.firstWhere((d) => d.id == _selected);
+    final detection = _shown.firstWhere((d) => d.id == _selected);
     setState(() {
       _confirming = false;
       _guide = widget.services.guides.fetch(_material!, detection.confidence, confirmed: true);
@@ -65,20 +70,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 fit: StackFit.expand,
                 children: [
                   Image.memory(result.jpeg, fit: BoxFit.fill, semanticLabel: 'Scanned photo'),
-                  CustomPaint(painter: _BoxPainter(result.detections, _classes, _selected)),
+                  CustomPaint(painter: _BoxPainter(_shown, _classes, _selected)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
-          if (result.detections.isEmpty) ..._empty() else ..._results(),
+          if (_shown.isEmpty) ..._empty() else ..._results(),
         ],
       ),
     );
   }
 
   List<Widget> _empty() => [
-        const Text('Nothing recognised', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+        Text(_enabled.length == 1 ? 'No ${_enabled.first.toLowerCase()} recognised' : 'Nothing recognised',
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
         const Text('Fill the frame with one item on a plain background, in good light.',
             style: TextStyle(color: Palette.muted)),
@@ -91,7 +97,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       ];
 
   List<Widget> _results() {
-    final detections = widget.result.detections;
+    final detections = _shown;
     return [
       Row(
         children: [
@@ -121,7 +127,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
           future: _guide,
           builder: (context, snapshot) => snapshot.hasData
               ? _GuideCard(guide: snapshot.data!)
-              : const Padding(
+              : snapshot.hasError
+                  ? _GuideCard(
+                      guide: widget.services.guides
+                          .curated(_material!, 'Offline guide. The AI guide could not be loaded.'),
+                    )
+                  : const Padding(
                   padding: EdgeInsets.all(16),
                   child: Row(children: [
                     SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -184,13 +195,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('What is this item made of?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            Text(
+                _enabled.length == 1
+                    ? 'Is this item ${_enabled.first.toLowerCase()}?'
+                    : 'What is this item made of?',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final cls in _classes)
+                for (final cls in _enabled)
                   ChoiceChip(
                     label: Text(cls),
                     selected: _material == cls,

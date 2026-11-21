@@ -28,11 +28,11 @@ jobs:
       - name: Required CI checks passed for this commit
         env:
           GH_TOKEN: ${{ github.token }}
+        # Every named CI job (ml, backend, web, e2e, mobile, docker) must have concluded success.
+        # All pages are read, and this gate's own running check is not one of the required names.
         run: |
-          failed=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
-            --jq '[.check_runs[] | select(.app.slug=="github-actions" and .name!="gate" and .conclusion!="success")] | length')
-          total=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" --jq '.total_count')
-          test "$total" -gt 0 && test "$failed" -eq 0
+          gh api --paginate "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100" \
+            | python .github/scripts/ci_gate.py
       - name: Model is approved for this channel
         run: python .github/scripts/model_gate.py "${{ inputs.model_version }}" "${{ inputs.channel }}"
 

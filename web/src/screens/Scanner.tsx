@@ -31,7 +31,15 @@ function describe(result: DetectResponse): string {
   return `Found ${result.detections.length}: ${items}.`;
 }
 
-export function Scanner({ announce, enabled }: { announce: (message: string) => void; enabled: WasteClass[] }) {
+export function Scanner({
+  announce,
+  enabled,
+  aiAvailable = false,
+}: {
+  announce: (message: string) => void;
+  enabled: WasteClass[];
+  aiAvailable?: boolean;
+}) {
   const camera = useCamera();
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [frame, setFrame] = useState<(Frame & { url: string }) | null>(null);
@@ -95,6 +103,7 @@ export function Scanner({ announce, enabled }: { announce: (message: string) => 
         interval = Math.max(LIVE_MIN_INTERVAL_MS, interval * 0.8);
       } catch (error) {
         if (cancelled) return;
+        setLive(null);
         if (error instanceof ApiError && (error.isBusy || error.status === 0)) {
           interval = Math.min(LIVE_MAX_INTERVAL_MS, interval * 2);
           setLiveNotice(error.status === 0 ? "Slow connection. Live preview is paused; use Capture." : "Server busy. Live preview slowed down.");
@@ -297,7 +306,7 @@ export function Scanner({ announce, enabled }: { announce: (message: string) => 
               <li>Pick the item to get a reuse idea or safe disposal steps.</li>
             </ol>
             <p className="muted">Photos are scanned and discarded. They are not stored.</p>
-            {enabled.length === 1 && enabled[0] && <GuideSearch material={enabled[0]} announce={announce} />}
+            {enabled.length === 1 && enabled[0] && <GuideSearch material={enabled[0]} announce={announce} aiAvailable={aiAvailable} />}
           </div>
         )}
         {scan.status === "scanning" && (

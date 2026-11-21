@@ -18,6 +18,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   CameraController? _controller;
   String? _error;
   bool _busy = false;
+  bool _starting = false;
 
   @override
   void initState() {
@@ -47,6 +48,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   }
 
   Future<void> _start() async {
+    if (_starting) return;
+    _starting = true;
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -69,6 +72,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       setState(() => _error = denied
           ? 'Camera access was denied. Allow it in Settings > Apps > EcoRevive > Permissions.'
           : 'The camera could not start (${e.code}).');
+    } finally {
+      _starting = false;
     }
   }
 
@@ -90,6 +95,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       _showError('Capture failed (${e.code}). Try again.');
     } on FormatException catch (e) {
       _showError(e.message);
+    } catch (e) {
+      _showError('The scan failed. Try again. ($e)');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

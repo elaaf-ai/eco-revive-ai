@@ -59,7 +59,9 @@ async def main() -> None:
         wall = time.perf_counter()
         await asyncio.gather(*(worker(client) for _ in range(args.concurrency)))
         wall = time.perf_counter() - wall
-        server = (await client.get(f"{args.url}/v1/metrics")).json()
+        token = os.environ.get("ECOREVIVE_METRICS_TOKEN", "")
+        response = await client.get(f"{args.url}/v1/metrics", headers={"Authorization": f"Bearer {token}"})
+        server = response.json() if response.status_code == 200 else {}
 
     report = {
         "model": ready.get("model"),

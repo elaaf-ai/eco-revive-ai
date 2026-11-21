@@ -49,7 +49,8 @@ def main() -> int:
 
     names = canonical_names()
     config = yaml.safe_load(args.data.read_text(encoding="utf-8"))
-    declared = [config["names"][i] for i in sorted(config["names"])]
+    raw_names = config["names"]
+    declared = list(raw_names) if isinstance(raw_names, list) else [raw_names[i] for i in sorted(raw_names)]
     errors: list[str] = []
     warnings: list[str] = []
     if declared != names:

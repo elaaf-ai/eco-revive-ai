@@ -106,7 +106,7 @@ async function toApiError(response: Response): Promise<ApiError> {
 
 function normalise(error: unknown): unknown {
   if (error instanceof ApiError) return error;
-  if (error instanceof DOMException && error.name === "AbortError") {
+  if (error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError")) {
     return new ApiError(0, "timeout", "The connection is slow. The request timed out.");
   }
   if (error instanceof TypeError) {
@@ -135,8 +135,8 @@ export function fetchGuide(body: GuideRequest, signal?: AbortSignal): Promise<Gu
 }
 
 export async function fetchItems(signal?: AbortSignal): Promise<ItemSummary[]> {
-  const body = await request<{ items: ItemSummary[] }>("/v1/items", { method: "GET" }, { signal, timeoutMs: 15000 });
-  return body.items;
+  const body = await request<{ items?: ItemSummary[] }>("/v1/items", { method: "GET" }, { signal, timeoutMs: 15000 });
+  return Array.isArray(body.items) ? body.items : [];
 }
 
 export function fetchItem(code: string, signal?: AbortSignal): Promise<CatalogItem> {

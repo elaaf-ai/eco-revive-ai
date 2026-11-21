@@ -47,6 +47,15 @@ class Guide {
   bool get isDisposal => kind == 'disposal';
 }
 
+String _serverMessage(String body) {
+  try {
+    final error = (jsonDecode(body) as Map<String, dynamic>)['error'] as Map<String, dynamic>;
+    return 'The server said: ${error['message']}';
+  } catch (_) {
+    return 'The server could not give a guide for this item.';
+  }
+}
+
 class GuideService {
   GuideService(this.shared, {http.Client? client, this.baseUrl = apiBase})
       : _client = client ?? http.Client();
@@ -71,8 +80,17 @@ class GuideService {
     );
   }
 
-  /// Hazardous items never leave the device: they always get the curated disposal guide.
+  /// Never throws: any failure becomes a labelled curated guide.
   Future<Guide> fetch(String className, double confidence, {required bool confirmed}) async {
+    try {
+      return await _fetch(className, confidence, confirmed: confirmed);
+    } catch (_) {
+      return curated(className, 'Offline guide. The server reply could not be read.');
+    }
+  }
+
+  /// Hazardous items never leave the device: they always get the curated disposal guide.
+  Future<Guide> _fetch(String className, double confidence, {required bool confirmed}) async {
     if (className == 'Hazardous') {
       return curated(className, 'Hazardous items always get team-written safety guidance.');
     }
@@ -94,7 +112,10 @@ class GuideService {
           return Guide.fromJson((jsonDecode(response.body) as Map<String, dynamic>)['guide'] as Map<String, dynamic>);
         }
         final retryable = response.statusCode == 429 || response.statusCode >= 500;
-        if (!retryable || attempt == 1) break;
+        if (!retryable) {
+          return curated(className, 'Team-written guide. ${_serverMessage(response.body)}');
+        }
+        if (attempt == 1) break;
       } on TimeoutException {
         if (attempt == 1) break;
       } on http.ClientException {

@@ -22,7 +22,8 @@ class FakeProvider:
     def __init__(self, result=GOOD, error: Exception | None = None, delay: float = 0):
         self.result, self.error, self.delay, self.calls = result, error, delay, 0
 
-    async def generate(self, class_name, item_hint):
+    async def generate(self, class_name, item_hint, variant=0):
+        self.last_variant = variant
         self.calls += 1
         await asyncio.sleep(self.delay)
         if self.error:

@@ -73,13 +73,29 @@ export function useCamera() {
     [facing],
   );
 
+  // Remember whether the camera was on when the tab was hidden, so it can come back on return.
+  const statusRef = useRef(status);
+  const startRef = useRef(start);
+  const resumeOnVisible = useRef(false);
   useEffect(() => {
-    const onHidden = () => {
-      if (document.hidden) stop();
+    statusRef.current = status;
+    startRef.current = start;
+  }, [status, start]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) {
+        resumeOnVisible.current = statusRef.current === "live" || statusRef.current === "starting";
+        stop();
+      } else if (resumeOnVisible.current) {
+        resumeOnVisible.current = false;
+        void startRef.current();
+      }
     };
-    document.addEventListener("visibilitychange", onHidden);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      document.removeEventListener("visibilitychange", onHidden);
+      document.removeEventListener("visibilitychange", onVisibility);
+      resumeOnVisible.current = false;
       // Intentionally reads the live counter: it invalidates any camera still opening.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       generation.current++;

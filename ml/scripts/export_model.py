@@ -59,27 +59,45 @@ def detections(model: YOLO, image: Path, imgsz: int) -> list[tuple[int, float, n
     return [(int(b.cls), float(b.conf), b.xyxy[0].cpu().numpy()) for b in boxes]
 
 
+def match_counts(a: list, b: list) -> tuple[int, list[float]]:
+    """How many detections in a have a same-class detection in b with IoU >= IOU_MATCH."""
+    matched, deltas = 0, []
+    for class_id, conf, box in a:
+        same_class = [o for o in b if o[0] == class_id]
+        best = max(same_class, key=lambda o: iou(box, o[2]), default=None)
+        if best is not None and iou(box, best[2]) >= IOU_MATCH:
+            matched += 1
+            deltas.append(abs(conf - best[1]))
+    return matched, deltas
+
+
 def parity(reference: YOLO, candidate: YOLO, images: list[Path], imgsz: int) -> dict:
-    total = matched = 0
+    """Compare both ways: every reference box must appear in the export, and the export must not
+    add boxes the reference does not have (extra false positives)."""
+    ref_total = cand_total = ref_matched = cand_matched = 0
     conf_deltas: list[float] = []
     for image in images:
-        others = detections(candidate, image, imgsz)
-        for class_id, conf, box in detections(reference, image, imgsz):
-            total += 1
-            same_class = [o for o in others if o[0] == class_id]
-            best = max(same_class, key=lambda o: iou(box, o[2]), default=None)
-            if best is not None and iou(box, best[2]) >= IOU_MATCH:
-                matched += 1
-                conf_deltas.append(abs(conf - best[1]))
+        ref = detections(reference, image, imgsz)
+        cand = detections(candidate, image, imgsz)
+        matched, deltas = match_counts(ref, cand)
+        back, _ = match_counts(cand, ref)
+        ref_total, cand_total = ref_total + len(ref), cand_total + len(cand)
+        ref_matched, cand_matched = ref_matched + matched, cand_matched + back
+        conf_deltas += deltas
     max_delta = max(conf_deltas, default=0.0)
-    match_rate = matched / total if total else 0.0
+    match_rate = ref_matched / ref_total if ref_total else 0.0
+    reverse_rate = cand_matched / cand_total if cand_total else (1.0 if ref_total == 0 else 0.0)
     return {
         "images": len(images),
-        "reference_detections": total,
-        "matched": matched,
+        "reference_detections": ref_total,
+        "candidate_detections": cand_total,
+        "matched": ref_matched,
         "match_rate": round(match_rate, 4),
+        "candidate_matched_back": cand_matched,
+        "reverse_match_rate": round(reverse_rate, 4),
+        "extra_candidate_detections": cand_total - cand_matched,
         "max_confidence_delta": round(max_delta, 4),
-        "passed": total > 0 and match_rate >= 0.95 and max_delta <= CONF_TOLERANCE,
+        "passed": ref_total > 0 and match_rate >= 0.95 and reverse_rate >= 0.95 and max_delta <= CONF_TOLERANCE,
     }
 
 

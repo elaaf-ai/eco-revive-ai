@@ -14,7 +14,15 @@ type State =
   | { status: "error"; message: string };
 
 /** Search by item code (e.g. 001) or name. Codes open the item's recycling and upcycling methods. */
-export function GuideSearch({ material, announce }: { material: WasteClass; announce: (message: string) => void }) {
+export function GuideSearch({
+  material,
+  announce,
+  aiAvailable = false,
+}: {
+  material: WasteClass;
+  announce: (message: string) => void;
+  aiAvailable?: boolean;
+}) {
   const [items, setItems] = useState<ItemSummary[]>([]);
   const [query, setQuery] = useState("");
   const [state, setState] = useState<State>({ status: "idle" });
@@ -68,9 +76,28 @@ export function GuideSearch({ material, announce }: { material: WasteClass; anno
     }
   };
 
+  const lookupCode = async (code: string) => {
+    const current = begin(code);
+    try {
+      const item = await fetchItem(code, current.signal);
+      setState({ status: "item", item });
+      announce(`Item ${item.code}, ${item.name}: recycling and upcycling methods shown.`);
+    } catch (error) {
+      if (current.signal.aborted) return;
+      const message =
+        error instanceof ApiError && error.code === "item_not_found"
+          ? `No item has the code ${code}. See the list of codes below.`
+          : error instanceof ApiError
+            ? error.message
+            : "Could not load the item.";
+      setState({ status: "error", message });
+      announce(message);
+    }
+  };
+
   const submit = (raw: string) => {
     const text = raw.trim().slice(0, 60);
-    if (!text) return;
+    if (!text.replace(/[^\p{L}\p{N}]/gu, "")) return;
     const matches = matchItems(items, text);
     const isCode = /^#?\d{1,3}$/.test(text);
     if (matches.length === 1 || (isCode && matches[0]?.code === text.replace(/^#/, "").padStart(3, "0"))) {
@@ -79,9 +106,7 @@ export function GuideSearch({ material, announce }: { material: WasteClass; anno
       setState({ status: "choose", matches });
       announce(`${matches.length} items match. Choose one.`);
     } else if (isCode) {
-      const message = `No item has the code ${text}. See the list of codes below.`;
-      setState({ status: "error", message });
-      announce(message);
+      void lookupCode(text.replace(/^#/, "").padStart(3, "0"));
     } else {
       void aiGuide(text);
     }
@@ -155,7 +180,7 @@ export function GuideSearch({ material, announce }: { material: WasteClass; anno
         </p>
       )}
       {state.status === "error" && <p className="notice notice-error">{state.message}</p>}
-      {state.status === "item" && <ItemCard item={state.item} material={material} announce={announce} />}
+      {state.status === "item" && <ItemCard item={state.item} material={material} announce={announce} aiAvailable={aiAvailable} />}
       {state.status === "guide" && (
         <>
           <p className="muted small">
