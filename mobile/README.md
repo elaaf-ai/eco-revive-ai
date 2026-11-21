@@ -39,5 +39,7 @@ The APK is written to `build/app/outputs/flutter-apk/app-release.apk`. It is **s
 
 ## Build notes for the team laptop
 
+- **Debug APK only.** Smart App Control blocks Flutter's release compiler (`gen_snapshot`) and shader compiler (`impellerc`) on this laptop. Use `flutter build apk --debug` here, and run unit tests with `flutter test --no-test-assets`. A release APK can be built on any machine without Smart App Control, or in CI if the model file is made available there.
+
 - Windows Application Control blocks the `sdkmanager.bat` wrapper. The Android Gradle Plugin's built-in downloader still works, and it installed NDK 28.2 and Platform 36 during the first build.
 - `android/gradle.properties` sets `kotlin.jvm.target.validation.mode=warning`. `tflite_flutter` compiles its Java code for JVM 11 while Kotlin follows Android Studio's bundled JDK 25.

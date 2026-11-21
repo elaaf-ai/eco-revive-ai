@@ -41,7 +41,7 @@ All 27 items are addressed. Each fix has a regression test unless noted.
 
 - **Android model input layout.** The exported TFLite model takes channels-first input `[1, 3, 640, 640]`, and the app accepted only `[1, 640, 640, 3]`. The APK would have shown "model not available" on every phone. The app now supports both layouts.
 - **Emulator result after the fix (photo `batch_6_000017`):** Plastic 0.69 / 0.60 / 0.37 on the phone, against 0.70 / 0.59 / 0.39 from the website's ONNX model.
-- **APK:** rebuilt.
+- **APK:** after the fix, only a **debug** build was possible here (`mobile/build/app/outputs/flutter-apk/app-debug.apk`, 222 MB, with the v2 model). Smart App Control now blocks Flutter's release compiler (`gen_snapshot`). The older `app-release.apk` on disk predates the fix and **cannot load the model**, so do not use it.
 
 ## Verified locally
 
