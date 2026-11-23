@@ -12,11 +12,24 @@ interface StageProps {
   imageUrl?: string | null;
   showVideo: boolean;
   dimmed?: boolean;
+  /** The Gemini vision check confirmed plastic in this photo. */
+  aiConfirmed?: boolean;
   children?: ReactNode;
 }
 
 /** Shows the camera or captured image with detection boxes aligned to the same frame. */
-export function Stage({ media, detections, selectedId, onSelect, videoRef, imageUrl, showVideo, dimmed, children }: StageProps) {
+export function Stage({
+  media,
+  detections,
+  selectedId,
+  onSelect,
+  videoRef,
+  imageUrl,
+  showVideo,
+  dimmed,
+  aiConfirmed = false,
+  children,
+}: StageProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [container, setContainer] = useState<Size>({ width: 0, height: 0 });
 
@@ -50,9 +63,11 @@ export function Stage({ media, detections, selectedId, onSelect, videoRef, image
           detections.map((detection) => {
             const meta = CLASS_META[detection.class_name];
             const selected = detection.id === selectedId;
-            const label = `${detection.class_name} ${percent(detection.confidence)}`;
+            const label = aiConfirmed
+              ? `${detection.class_name} ✓ AI-checked`
+              : `${detection.class_name} ${percent(detection.confidence)}`;
             // In busy scenes, only label the selected and confident boxes so labels don't pile up.
-            const showLabel = selected || detections.length <= 3 || detection.confidence >= 0.5;
+            const showLabel = selected || detections.length <= 3 || detection.confidence >= 0.5 || aiConfirmed;
             return (
               <button
                 key={detection.id}

@@ -88,6 +88,8 @@ export interface GuideRequest {
   variant?: number;
   /** Base64 JPEG crop of the selected item, so the guide is written for that item. */
   image?: string;
+  /** Plastic items the AI check saw in the whole photo, to help name the cropped item. */
+  context_items?: string[];
 }
 
 export interface Guide {

@@ -45,14 +45,15 @@ export async function normaliseUpload(file: File, maxSide: number): Promise<Fram
 }
 
 /**
- * Cut the selected box out of the photo, with some context around it, as a base64 JPEG
- * (no data: prefix). The server asks Gemini what the item is, so the guide fits the real item.
+ * Cut the selected box out of the photo, with generous context around it, as a base64 JPEG
+ * (no data: prefix), and outline the box in green. The detector's box often covers only part of
+ * an item (one hinge of a pair of glasses), so Gemini needs to see the whole object to name it.
  */
 export async function cropToBase64(
   photo: Blob,
   box: { x1: number; y1: number; x2: number; y2: number },
-  maxSide = 512,
-  margin = 0.25,
+  maxSide = 640,
+  margin = 1,
 ): Promise<string> {
   const bitmap = await createImageBitmap(photo);
   const { width: w, height: h } = bitmap;
@@ -62,8 +63,8 @@ export async function cropToBase64(
   let top = Math.max(0, box.y1 * h - bh * margin);
   let right = Math.min(w, box.x2 * w + bw * margin);
   let bottom = Math.min(h, box.y2 * h + bh * margin);
-  // Very thin boxes (a glasses arm, a straw) still need enough context to recognise.
-  const minSide = Math.min(160, w, h);
+  // Small or thin boxes still need enough context to recognise: at least half the photo's short side.
+  const minSide = Math.min(Math.max(160, Math.min(w, h) * 0.5), w, h);
   if (right - left < minSide) {
     const centre = (left + right) / 2;
     left = Math.max(0, Math.min(w - minSide, centre - minSide / 2));
@@ -82,6 +83,12 @@ export async function cropToBase64(
   if (!context) throw new Error("canvas");
   context.drawImage(bitmap, left, top, right - left, bottom - top, 0, 0, canvas.width, canvas.height);
   bitmap.close();
+  // Outline the selected box so Gemini knows which item is meant.
+  const sx = canvas.width / (right - left);
+  const sy = canvas.height / (bottom - top);
+  context.strokeStyle = "#39ff14";
+  context.lineWidth = Math.max(2, Math.round(canvas.width / 160));
+  context.strokeRect((box.x1 * w - left) * sx, (box.y1 * h - top) * sy, bw * sx, bh * sy);
   const blob = await canvasToBlob(canvas, 0.85);
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let binary = "";

@@ -80,6 +80,7 @@ export function ResultsPanel({
             confidence: selected.confidence,
             confirmed_by_user: request.confirmed,
             ...(image ? { image } : {}),
+            ...(image && verdict?.plastic_items.length ? { context_items: verdict.plastic_items } : {}),
           },
           controller.signal,
         ),
@@ -109,7 +110,7 @@ export function ResultsPanel({
         }
       });
     return () => controller.abort();
-  }, [request, selected, announce, photo]);
+  }, [request, selected, announce, photo, verdict]);
 
   if (result.detections.length === 0) {
     const aiSeesPlastic = verdict?.contains_plastic && verdict.gemini === "plastic";

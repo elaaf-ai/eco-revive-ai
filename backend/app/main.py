@@ -475,9 +475,9 @@ def create_app(
             raise ApiError(422, "class_not_enabled", f"This app only gives guides for: {', '.join(enabled)}.")
 
         async def produce() -> GuideResponse:
-            request_body, identified = body.model_copy(update={"image": None}), None
+            request_body, identified = body.model_copy(update={"image": None, "context_items": []}), None
             if body.image and not body.item_hint and app.state.vision is not None:
-                identified = await identify(body.image)
+                identified = await identify(body.image, body.context_items)
                 if identified is not None:
                     name, material, is_plastic, certainty = identified
                     if not is_plastic and certainty != "low" and body.class_name.value == "Plastic":
@@ -495,14 +495,15 @@ def create_app(
         fingerprint = hashlib.sha256(body.model_dump_json().encode()).hexdigest()
         return await idempotent(request, "guides", fingerprint, produce)
 
-    async def identify(image_b64: str) -> tuple[str, str, bool, str] | None:
+    async def identify(image_b64: str, context_items: list[str]) -> tuple[str, str, bool, str] | None:
         """Name the item in a crop. A Gemini failure falls back to a guide for the class alone."""
         try:
             image = decode_image(base64.b64decode(image_b64, validate=True), settings.max_pixels, 16)
         except Exception:
             raise ApiError(422, "invalid_image", "The item image could not be read.") from None
         try:
-            answer = await app.state.vision.identify_item(to_jpeg(image, side=512))
+            hints = [n for n in (clean_item_name(i) for i in context_items[:5]) if n]
+            answer = await app.state.vision.identify_item(to_jpeg(image, side=640), hints)
         except VisionError as exc:
             metrics.incr(f"vision_error_{exc.reason}")
             log(logger, "identify_unavailable", logging.WARNING, reason=exc.reason)

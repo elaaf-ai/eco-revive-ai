@@ -30,8 +30,9 @@ class FakeVision:
             raise self.photo
         return self.photo
 
-    async def identify_item(self, jpeg: bytes) -> ItemIdentity:
+    async def identify_item(self, jpeg: bytes, context_items: list[str] | None = None) -> ItemIdentity:
         self.item_calls += 1
+        self.context = context_items
         if isinstance(self.item, Exception) or self.item is None:
             raise self.item or VisionError("timeout")
         return self.item
@@ -167,7 +168,9 @@ def test_bad_image_is_rejected(settings):
     assert response.json()["error"]["code"] == "invalid_image"
 
 
-@pytest.mark.parametrize(("raw", "clean"), [("Glasses Frame!", "glasses frame"), ("  ", None), ("<b>bag</b>", "b bag b")])
+@pytest.mark.parametrize(
+    ("raw", "clean"), [("Glasses Frame!", "glasses frame"), ("  ", None), ("<b>bag</b>", "b bag b")]
+)
 def test_clean_item_name(raw, clean):
     assert clean_item_name(raw) == clean
 
@@ -184,3 +187,12 @@ def test_gemini_rule_falls_back_to_the_detector_boxes(settings):
     assert verdict["gemini"] == "unavailable"
     assert verdict["decided_by"] == "detector"
     assert verdict["contains_plastic"] is True  # the fixture model boxes plastic
+
+
+def test_photo_item_names_are_passed_as_naming_hints(settings):
+    vision = FakeVision(PhotoVerdict(contains_plastic=True),
+                        ItemIdentity(item_name="glasses frame", material="plastic", is_plastic=True, certainty="high"))
+    with app_with(settings, vision, RecordingGuides()) as c:
+        body = c.post("/v1/guides", json=guide_body(image=crop_b64(), context_items=["Eyeglasses frame!"])).json()
+    assert vision.context == ["eyeglasses frame"]
+    assert body["identified_item"] == "glasses frame"

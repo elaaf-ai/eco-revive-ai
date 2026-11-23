@@ -111,6 +111,10 @@ class GuideRequest(BaseModel):
         None, max_length=400_000,
         description="Optional base64 JPEG crop of the selected item. Gemini names the item so the guide fits it.",
     )
+    context_items: list[str] = Field(
+        default_factory=list, max_length=5,
+        description="Plastic items the photo check saw, used only as naming hints for the crop",
+    )
 
 
 class Guide(BaseModel):

@@ -31,8 +31,10 @@ PHOTO_PROMPT = (
 )
 
 ITEM_PROMPT = (
-    "You identify one item for a plastic recycling app. The photo is a crop around the item the user selected; "
-    "the item is in the middle. Ignore hands and background.\n"
+    "You identify one item for a plastic recycling app. The photo is a crop around the item the user selected. "
+    "The selected item is inside or touches the green rectangle; the rectangle may cover only part of the item "
+    "(for example one hinge of a pair of glasses), so name the whole object it belongs to. "
+    "Ignore hands and background.\n"
     "item_name: a short everyday name for the item, 1 to 4 words, for example \"glasses frame\", \"shampoo bottle\", "
     "\"carrier bag\", \"yogurt cup\". Do not invent brands.\n"
     "material: its main material.\n"
@@ -64,7 +66,7 @@ class VisionProvider(Protocol):
 
     async def check_photo(self, jpeg: bytes) -> PhotoVerdict: ...
 
-    async def identify_item(self, jpeg: bytes) -> ItemIdentity: ...
+    async def identify_item(self, jpeg: bytes, context_items: list[str] | None = None) -> ItemIdentity: ...
 
 
 def to_jpeg(image: Image.Image, side: int = 768, quality: int = 85) -> bytes:
@@ -143,7 +145,14 @@ class GeminiVision:
         assert isinstance(result, PhotoVerdict)
         return result
 
-    async def identify_item(self, jpeg: bytes) -> ItemIdentity:
-        result = await self._ask(ITEM_PROMPT, jpeg, ItemIdentity)
+    async def identify_item(self, jpeg: bytes, context_items: list[str] | None = None) -> ItemIdentity:
+        prompt = ITEM_PROMPT
+        if context_items:
+            seen = ", ".join(f'"{name}"' for name in context_items[:5])
+            prompt += (
+                f"\nA check of the whole photo saw these plastic items: {seen}. "
+                "Prefer one of these names if it fits."
+            )
+        result = await self._ask(prompt, jpeg, ItemIdentity)
         assert isinstance(result, ItemIdentity)
         return result
