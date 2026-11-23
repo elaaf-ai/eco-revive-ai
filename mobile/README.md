@@ -2,6 +2,10 @@
 
 Home → Camera → Results, with the YOLO11 TFLite model running on the phone. Guides come from the EcoRevive API when one is configured; otherwise the bundled curated guides are used and labelled "offline". Hazardous results always use the curated disposal guide and never call the server.
 
+**AI check (when online):** after the on-device scan, the app sends the photo to `POST /v1/detect?verify=true`. When the answer arrives, the results switch to the server's checked boxes: numbered and named ("Plastic 1 · plastic cup ✓"), with the likely resin code (#1 PET) and item code, wrong boxes removed, and the Gemini verdict. If the server cannot be reached, the phone's own result stays. Each AI-checked item asks "Was it right?"; the app sends the answer for the adaptive learning loop but never the photo.
+
+**Current APK:** `build/app/outputs/flutter-apk/app-debug.apk`, built with `--dart-define=API_BASE=https://ecorevive-ai.vercel.app`.
+
 ## Add the model
 
 Copy two files from the Colab export (`My Drive/FYP/ecorevive/artifacts/<version>/`) into `assets/model/`:

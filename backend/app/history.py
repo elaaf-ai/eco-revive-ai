@@ -39,7 +39,26 @@ SCHEMA = (
         items TEXT NOT NULL
     )""",
     "CREATE INDEX IF NOT EXISTS scans_client_time ON scans (client_hash, created_at)",
+    # Adaptive learning: users say whether each detected item was right. A photo is stored only
+    # when the user ticked the consent box; it becomes training data for the next model.
+    """CREATE TABLE IF NOT EXISTS feedback (
+        id TEXT PRIMARY KEY,
+        client_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        scan_id TEXT,
+        model_version TEXT NOT NULL,
+        class_name TEXT NOT NULL,
+        item_name TEXT,
+        confidence REAL NOT NULL,
+        correct INTEGER NOT NULL,
+        box TEXT NOT NULL,
+        image_sha256 TEXT,
+        image TEXT
+    )""",
+    "CREATE INDEX IF NOT EXISTS feedback_client ON feedback (client_hash, created_at)",
 )
+
+MAX_FEEDBACK_PER_CLIENT = 500
 
 
 class HistoryUnavailable(Exception):
@@ -50,6 +69,18 @@ class HistoryUnavailable(Exception):
 class ScanItem:
     class_name: str
     confidence: float
+
+
+@dataclass(frozen=True)
+class FeedbackRecord:
+    model_version: str
+    class_name: str
+    confidence: float
+    correct: bool
+    box: tuple[float, float, float, float]
+    item_name: str | None = None
+    scan_id: str | None = None
+    image_b64: str | None = None  # only with the user's consent
 
 
 @dataclass(frozen=True)
@@ -231,7 +262,62 @@ class HistoryStore:
         }
 
     def clear(self, client_id: str) -> int:
+        """Delete this browser's scans and feedback (including any shared photos). Returns the scan count."""
         client = hash_client(client_id)
         count = self._execute([("SELECT COUNT(*) FROM scans WHERE client_hash = ?", (client,))], fetch=True)[0][0]
-        self._execute([("DELETE FROM scans WHERE client_hash = ?", (client,))])
+        self._execute([
+            ("DELETE FROM scans WHERE client_hash = ?", (client,)),
+            ("DELETE FROM feedback WHERE client_hash = ?", (client,)),
+        ])
         return int(count)
+
+    # --- Adaptive learning -------------------------------------------------------------------
+
+    def add_feedback(self, client_id: str, record: FeedbackRecord, moment: datetime | None = None) -> str:
+        feedback_id = uuid.uuid4().hex
+        client = hash_client(client_id)
+        digest = None
+        if record.image_b64:
+            digest = hashlib.sha256(record.image_b64.encode()).hexdigest()
+        self._execute([
+            (
+                "INSERT INTO feedback (id, client_hash, created_at, scan_id, model_version, class_name, item_name, "
+                "confidence, correct, box, image_sha256, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (feedback_id, client, now_iso(moment), record.scan_id, record.model_version, record.class_name,
+                 record.item_name, round(record.confidence, 4), 1 if record.correct else 0,
+                 json.dumps([round(v, 5) for v in record.box]), digest, record.image_b64),
+            ),
+            (
+                "DELETE FROM feedback WHERE client_hash = ? AND id NOT IN "
+                "(SELECT id FROM feedback WHERE client_hash = ? ORDER BY created_at DESC, id DESC LIMIT ?)",
+                (client, client, MAX_FEEDBACK_PER_CLIENT),
+            ),
+        ])
+        return feedback_id
+
+    def learning_stats(self) -> dict[str, int]:
+        row = self._execute([(
+            "SELECT COUNT(*), COALESCE(SUM(correct), 0), "
+            "COALESCE(SUM(CASE WHEN image IS NOT NULL THEN 1 ELSE 0 END), 0) FROM feedback",
+            (),
+        )], fetch=True)[0]
+        total, correct, photos = int(row[0]), int(row[1]), int(row[2])
+        return {"feedback": total, "correct": correct, "wrong": total - correct, "training_photos": photos}
+
+    def export_feedback(self, only_with_photos: bool = True) -> list[dict[str, Any]]:
+        """All feedback rows, oldest first, for building a training set (ml/scripts/export_feedback.py)."""
+        where = " WHERE image IS NOT NULL" if only_with_photos else ""
+        rows = self._execute([(
+            "SELECT id, created_at, scan_id, model_version, class_name, item_name, confidence, correct, box, "
+            f"image_sha256, image FROM feedback{where} ORDER BY created_at, id",
+            (),
+        )], fetch=True)
+        keys = ("id", "created_at", "scan_id", "model_version", "class_name", "item_name", "confidence",
+                "correct", "box", "image_sha256", "image")
+        out = []
+        for r in rows:
+            item = dict(zip(keys, r, strict=True))
+            item["correct"] = bool(item["correct"])
+            item["box"] = json.loads(item["box"])
+            out.append(item)
+        return out

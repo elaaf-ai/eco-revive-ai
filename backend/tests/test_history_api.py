@@ -100,3 +100,48 @@ def test_database_outage_does_not_break_scanning(settings):
         outage = c.get("/v1/history", headers={"X-Client-Id": CLIENT})
         assert outage.status_code == 503
         assert outage.json()["error"]["code"] == "history_unavailable"
+
+
+# --- Adaptive learning feedback ----------------------------------------------------------------
+
+
+def photo_b64() -> str:
+    import base64
+
+    return base64.b64encode(image_bytes((640, 480))).decode()
+
+
+def feedback(c: TestClient, correct: bool, share: bool, client_id: str = CLIENT, image: str | None = None):
+    body = {"correct": correct, "class_name": "Plastic", "confidence": 0.42,
+            "box": {"x1": 0.1, "y1": 0.1, "x2": 0.4, "y2": 0.5}, "model_version": "test-0.0.1",
+            "item_name": "Plastic cup!", "share_photo": share, "image": image}
+    return c.post("/v1/feedback", json=body, headers={"X-Client-Id": client_id})
+
+
+def test_feedback_is_stored_and_counted(client: TestClient):
+    assert client.get("/v1/learning").json()["feedback"] == 0
+    first = feedback(client, True, share=True, image=photo_b64())
+    assert first.status_code == 200 and first.json()["photo_saved"] is True
+    second = feedback(client, False, share=False, image=photo_b64())  # no consent: photo dropped
+    assert second.json()["photo_saved"] is False
+    stats = client.get("/v1/learning").json()
+    assert stats == {**stats, "enabled": True, "feedback": 2, "correct": 1, "wrong": 1, "training_photos": 1}
+    assert "of 50 shared photos" in stats["next_step"]
+
+
+def test_feedback_needs_a_browser_id_and_a_real_photo(client: TestClient):
+    assert feedback(client, True, share=False, client_id="").status_code == 400
+    bad = feedback(client, True, share=True, image="bm90IGFuIGltYWdl")
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "invalid_image"
+
+
+def test_clear_history_removes_feedback_too(client: TestClient):
+    feedback(client, True, share=True, image=photo_b64())
+    client.delete("/v1/history", headers={"X-Client-Id": CLIENT})
+    assert client.get("/v1/learning").json()["feedback"] == 0
+
+
+def test_learning_without_database(settings):
+    with TestClient(create_app(settings)) as c:
+        assert c.get("/v1/learning").json()["enabled"] is False
+        assert feedback(c, True, share=False).json()["error"]["code"] == "history_disabled"

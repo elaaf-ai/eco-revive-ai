@@ -60,3 +60,19 @@ test("the all-classes server has no history database, so there is no History lin
   await expect(page.getByRole("link", { name: "Scan", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "History" })).toHaveCount(0);
 });
+
+test("feedback on a scanned item is counted for model learning", async ({ page }) => {
+  await page.goto("/#/scan");
+  await page.locator('input[type="file"]').setInputFiles(sample);
+  await expect(page.getByRole("heading", { name: "1 item found" })).toBeVisible();
+  const question = page.getByRole("group", { name: /Was Plastic 1 .*right\?/ });
+  await expect(question).toBeVisible();
+  const sent = page.waitForResponse((r) => r.url().endsWith("/v1/feedback"));
+  await question.getByRole("button", { name: "Yes" }).click();
+  expect((await sent).status()).toBe(200);
+  await expect(page.getByText(/will help train the next model/)).toBeVisible();
+
+  await page.goto("/#/history");
+  await expect(page.getByRole("heading", { name: "Model learning" })).toBeVisible();
+  await expect(page.getByText("Answers collected")).toBeVisible();
+});

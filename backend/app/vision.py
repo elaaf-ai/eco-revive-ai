@@ -55,6 +55,11 @@ BOX_PROMPT = (
     "name that (for example \"person\", \"face\", \"wall\").\n"
     "- is_plastic: true only if that object is a loose item made mainly of plastic. People, faces, hands, skin, "
     "hair, worn clothing, furniture, walls, windows and lights are false.\n"
+    "- resin_code: for plastic items, the most likely resin identification code 1 to 7 (1 PET, 2 HDPE, 3 PVC, "
+    "4 LDPE, 5 PP, 6 PS, 7 other or mixed) from what the object usually is made of; 0 if not plastic or you "
+    "cannot tell.\n"
+    "- resin_certain: true only if the recycling number is visible on the item or the object is almost always "
+    "made of that plastic (for example a clear water bottle is PET).\n"
     "Return one entry per box number, in order."
 )
 
@@ -63,6 +68,11 @@ class BoxLabel(BaseModel):
     number: int
     item_name: str
     is_plastic: bool
+    resin_code: int = Field(0, ge=0, le=7)
+    resin_certain: bool = False
+
+
+RESIN_TYPES = {1: "PET", 2: "HDPE", 3: "PVC", 4: "LDPE", 5: "PP", 6: "PS", 7: "Other"}
 
 
 class BoxLabels(BaseModel):

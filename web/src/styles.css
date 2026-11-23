@@ -1178,6 +1178,100 @@ main {
   font-weight: 600;
 }
 
+/* Adaptive learning feedback */
+.detection-resin {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--lime);
+}
+
+.feedback {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.feedback-question,
+.feedback-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.feedback-done {
+  color: var(--aqua);
+}
+
+.feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feedback-actions .btn {
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+.feedback-share {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.feedback-share input {
+  margin-top: 4px;
+}
+
+.learning {
+  display: grid;
+  gap: 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+}
+
+.learning .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.learning-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.learning-stats div {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.learning-stats dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.learning-stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
 /* Scan history */
 .history {
   max-width: 880px;

@@ -4,6 +4,7 @@ import { ApiError, fetchGuide } from "../api";
 import { CLASS_META, percent } from "../classes";
 import { cropToBase64 } from "../frames";
 import { WASTE_CLASSES, itemNumber, type DetectResponse, type Guide, type WasteClass } from "../types";
+import { Feedback } from "./Feedback";
 import { GuideCard } from "./GuideCard";
 
 type GuideState =
@@ -210,6 +211,13 @@ export function ResultsPanel({
                 <span className="detection-name">
                   {detection.class_name} {itemNumber(detection)}
                   {detection.item_name && <span className="detection-item">{detection.item_name}</span>}
+                  {detection.plastic_type && (
+                    <span className="detection-resin" title="Resin code: the number in the recycling triangle">
+                      #{detection.plastic_type.number} {detection.plastic_type.type}
+                      {detection.plastic_type.certain ? "" : " (likely)"}
+                      {detection.catalog_code ? ` · item ${detection.catalog_code}` : ""}
+                    </span>
+                  )}
                   {detection.ai_checked && (
                     <span className="detection-check">
                       <BadgeCheck size={14} aria-hidden /> AI-checked
@@ -280,6 +288,16 @@ export function ResultsPanel({
         </p>
       )}
       {selected && guide.status === "ready" && <GuideCard guide={guide.guide} cached={guide.cached} />}
+      {selected && result.verdict && (
+        <Feedback
+          key={selected.id}
+          detection={selected}
+          modelVersion={result.model.version}
+          scanId={result.scan_id}
+          photo={photo}
+          announce={announce}
+        />
+      )}
     </div>
   );
 }

@@ -25,6 +25,15 @@ class Box(BaseModel):
     y2: float = Field(ge=0, le=1)
 
 
+class PlasticType(BaseModel):
+    """Resin identification code: the number inside the recycling triangle."""
+
+    number: int = Field(ge=1, le=7)
+    type: str
+    certain: bool = Field(description="False means 'likely': check the number printed on the item")
+    source: Literal["gemini", "catalog"]
+
+
 class Detection(BaseModel):
     id: int
     class_id: int
@@ -33,6 +42,8 @@ class Detection(BaseModel):
     box: Box
     item_name: str | None = Field(None, description="What Gemini sees in this box (with ?verify=true)")
     ai_checked: bool = Field(False, description="Gemini looked at this box and confirmed it is plastic")
+    plastic_type: PlasticType | None = Field(None, description="Likely resin code, from Gemini or the catalogue")
+    catalog_code: str | None = Field(None, description="Matching item code (001-014) when the item is catalogued")
 
 
 class ModelInfo(BaseModel):
@@ -164,3 +175,34 @@ class Readiness(BaseModel):
     guide_provider: Literal["gemini", "curated_only"]
     history_enabled: bool = False
     detail: str
+
+
+class FeedbackRequest(BaseModel):
+    """The user says whether one detected item was right. Feeds the adaptive learning loop."""
+
+    correct: bool
+    class_name: WasteClass
+    confidence: float = Field(ge=0, le=1)
+    box: Box
+    model_version: str = Field(max_length=60)
+    item_name: str | None = Field(None, max_length=60)
+    scan_id: str | None = Field(None, max_length=64)
+    share_photo: bool = Field(False, description="Consent to keep the photo as training data")
+    image: str | None = Field(None, max_length=1_500_000, description="Base64 JPEG of the scanned photo")
+
+
+class FeedbackResponse(BaseModel):
+    api_version: Literal["1"] = "1"
+    id: str
+    photo_saved: bool
+
+
+class LearningStats(BaseModel):
+    api_version: Literal["1"] = "1"
+    enabled: bool
+    feedback: int = 0
+    correct: int = 0
+    wrong: int = 0
+    training_photos: int = 0
+    model_version: str | None = None
+    next_step: str

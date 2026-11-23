@@ -29,7 +29,7 @@ from .curated_guides import SAFETY_NOTICE
 from .detector import ModelLoadError, OnnxDetector, RawDetection
 from .errors import ApiError
 from .guides import GeminiProvider, GuideProvider, GuideService
-from .history import HistoryStore, HistoryUnavailable, ScanItem, ScanRecord
+from .history import FeedbackRecord, HistoryStore, HistoryUnavailable, ScanItem, ScanRecord
 from .idempotency import IdempotencyStore
 from .imaging import decode_image, quality_hints
 from .observability import REQUEST_ID_PATTERN, Metrics, configure_logging, log, request_id_var
@@ -39,17 +39,21 @@ from .schemas import (
     Detection,
     DetectResponse,
     ErrorResponse,
+    FeedbackRequest,
+    FeedbackResponse,
     GuideRequest,
     GuideResponse,
     Health,
     HistoryResponse,
+    LearningStats,
     ModelInfo,
+    PlasticType,
     Readiness,
     ScanQuality,
     Verdict,
     WasteClass,
 )
-from .vision import BoxLabels, GeminiVision, VisionError, VisionProvider, clean_item_name, to_jpeg
+from .vision import RESIN_TYPES, BoxLabels, GeminiVision, VisionError, VisionProvider, clean_item_name, to_jpeg
 
 logger = logging.getLogger("ecorevive.api")
 CLIENT_ID_HEADER = "X-Client-Id"
@@ -443,6 +447,8 @@ def create_app(
             quality.image_hints = hints
             ranked = sorted(shown, key=lambda d: d.confidence, reverse=True)
             names: dict[int, str] = {}
+            types: dict[int, PlasticType] = {}
+            codes: dict[int, str] = {}
             removed: list[str] = []
             verdict = None
             if verify:
@@ -461,6 +467,15 @@ def create_app(
                         kept.append(d)
                         if entry is not None and name:
                             names[id(d)] = name
+                            coded = catalog.match_name(name)
+                            if coded is not None:
+                                codes[id(d)] = coded.code
+                            if entry.resin_code in RESIN_TYPES:
+                                types[id(d)] = PlasticType(number=entry.resin_code, type=RESIN_TYPES[entry.resin_code],
+                                                           certain=entry.resin_certain, source="gemini")
+                            elif coded is not None:
+                                types[id(d)] = PlasticType(number=coded.resin.number, type=coded.resin.type,
+                                                           certain=False, source="catalog")
                     ranked = kept
                     metrics.incr("vision_boxes_removed", len(removed))
             scan_id = None
@@ -493,6 +508,8 @@ def create_app(
                         box=Box(x1=d.box[0], y1=d.box[1], x2=d.box[2], y2=d.box[3]),
                         item_name=names.get(id(d)),
                         ai_checked=id(d) in names,
+                        plastic_type=types.get(id(d)),
+                        catalog_code=codes.get(id(d)),
                     )
                     for i, d in enumerate(ranked)
                 ],
@@ -598,6 +615,47 @@ def create_app(
         """Delete every saved scan of this browser."""
         store, client = history_for(request)
         return {"deleted": await history_call(store.clear, client)}
+
+    @app.post("/v1/feedback", response_model=FeedbackResponse, tags=["learning"], responses=ERRORS)
+    async def post_feedback(request: Request, body: FeedbackRequest):
+        """Was this detected item right? Stored for the next training round (adaptive learning)."""
+        store, client = history_for(request)
+        image = None
+        if body.share_photo and body.image:
+            try:  # keep only real images, re-encoded without metadata
+                decoded = decode_image(base64.b64decode(body.image, validate=True), settings.max_pixels, 32)
+                image = base64.b64encode(to_jpeg(decoded, side=1280, quality=88)).decode()
+            except Exception:
+                raise ApiError(422, "invalid_image", "The photo could not be read.") from None
+        record = FeedbackRecord(
+            model_version=body.model_version,
+            class_name=body.class_name.value,
+            confidence=body.confidence,
+            correct=body.correct,
+            box=(body.box.x1, body.box.y1, body.box.x2, body.box.y2),
+            item_name=clean_item_name(body.item_name) if body.item_name else None,
+            scan_id=body.scan_id,
+            image_b64=image,
+        )
+        feedback_id = await history_call(store.add_feedback, client, record)
+        metrics.incr("feedback_correct" if body.correct else "feedback_wrong")
+        return FeedbackResponse(id=feedback_id, photo_saved=image is not None)
+
+    @app.get("/v1/learning", response_model=LearningStats, tags=["learning"], responses=ERRORS)
+    async def get_learning():
+        """Totals of the adaptive learning loop: feedback collected and training photos shared."""
+        version = app.state.detector.version if app.state.detector is not None else None
+        if app.state.history is None:
+            return LearningStats(enabled=False, model_version=version,
+                                 next_step="Feedback needs the history database.")
+        stats = await history_call(app.state.history.learning_stats)
+        photos = stats["training_photos"]
+        next_step = (
+            f"{photos} shared photos are ready for the next training round."
+            if photos >= 50
+            else f"{photos} of 50 shared photos collected before the next training round."
+        )
+        return LearningStats(enabled=True, model_version=version, next_step=next_step, **stats)
 
     catalog = Catalog()
 

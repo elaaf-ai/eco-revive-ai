@@ -78,6 +78,30 @@ class Catalog:
         normalised = self.normalise_code(code)
         return self._by_code.get(normalised) if normalised else None
 
+    def match_name(self, name: str) -> CatalogItem | None:
+        """The coded item a free-text name refers to ("plastic water bottle" -> 001), or None.
+
+        The longest matching name or alias wins, so "bottle cap" beats "bottle"."""
+        text = f" {' '.join(name.lower().replace('-', ' ').split())} "
+        best: tuple[int, CatalogItem] | None = None
+        for item in self.items:
+            for candidate in (item.name, *item.aliases):
+                words = f" {' '.join(candidate.lower().replace('-', ' ').split())} "
+                # "plastic water bottle" contains "water bottle"; "plastic cup" is inside "disposable plastic cup".
+                inside = len(text.split()) >= 2 and text in words
+                if (words in text or inside) and (best is None or len(words) > best[0]):
+                    best = (len(words), item)
+        if best is None and len(text.split()) == 1:
+            # One word ("straw") counts only when exactly one item uses it, so "cup" stays ambiguous.
+            hits = {
+                item.code: item
+                for item in self.items
+                for candidate in (item.name, *item.aliases)
+                if text in f" {' '.join(candidate.lower().replace('-', ' ').split())} "
+            }
+            return next(iter(hits.values())) if len(hits) == 1 else None
+        return best[1] if best else None
+
     def search(self, query: str) -> list[CatalogItem]:
         """Exact code first, then name or alias matches."""
         if (item := self.get(query)) is not None:

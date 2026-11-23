@@ -5,6 +5,7 @@ import 'guides.dart';
 import 'screens/home_screen.dart';
 import 'shared_data.dart';
 import 'theme.dart';
+import 'vision.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,9 +14,11 @@ void main() {
 
 /// Loads shared data and the on-device model once, then exposes them to the screens.
 class AppServices {
-  AppServices(this.shared, this.guides, this.detector, this.modelError);
+  AppServices(this.shared, this.guides, this.detector, this.modelError, {VisionService? vision})
+      : vision = vision ?? VisionService();
   final SharedData shared;
   final GuideService guides;
+  final VisionService vision;
   final WasteDetector? detector;
   final String? modelError;
 

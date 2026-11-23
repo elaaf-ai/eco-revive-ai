@@ -1,0 +1,161 @@
+{
+  "evaluated_at": "2026-11-23T09:45:05.311029+00:00",
+  "model_version": "0.1.0-preview",
+  "format": "onnx",
+  "sha256": "8d96b15df53f667de22c4057d9ce6c2b3573d74e428c72c2e5035060f1c328ed",
+  "split": "val",
+  "images": 172,
+  "settings": {
+    "conf": 0.001,
+    "nms_iou": 0.7,
+    "max_det": 300,
+    "imgsz": 640,
+    "preprocessing": "backend letterbox (PIL bilinear, pad 114)"
+  },
+  "map50": 0.2459,
+  "map50_95": 0.2069,
+  "precision": 0.7945,
+  "recall": 0.2338,
+  "per_class": {
+    "Plastic": {
+      "instances": 211,
+      "ap50": 0.4343,
+      "ap50_95": 0.3364,
+      "precision": 0.6367,
+      "recall": 0.4076
+    },
+    "Glass": {
+      "instances": 4,
+      "ap50": 0.496,
+      "ap50_95": 0.471,
+      "precision": 0.8074,
+      "recall": 0.5
+    },
+    "Metal": {
+      "instances": 65,
+      "ap50": 0.2992,
+      "ap50_95": 0.2269,
+      "precision": 0.5284,
+      "recall": 0.2615
+    },
+    "Organic": {
+      "instances": 1,
+      "ap50": 0.0,
+      "ap50_95": 0.0,
+      "precision": 1.0,
+      "recall": 0.0
+    },
+    "Hazardous": {
+      "instances": 2,
+      "ap50": 0.0,
+      "ap50_95": 0.0,
+      "precision": 1.0,
+      "recall": 0.0
+    }
+  },
+  "confusion_matrix": {
+    "rows_predicted_cols_true": [
+      "Plastic",
+      "Glass",
+      "Metal",
+      "Organic",
+      "Hazardous",
+      "background"
+    ],
+    "counts": [
+      [
+        114,
+        2,
+        14,
+        0,
+        1,
+        114
+      ],
+      [
+        3,
+        2,
+        0,
+        0,
+        0,
+        2
+      ],
+      [
+        7,
+        0,
+        23,
+        0,
+        0,
+        22
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        87,
+        0,
+        28,
+        1,
+        1,
+        0
+      ]
+    ]
+  },
+  "photo_level": {
+    "class": "Plastic",
+    "question": "Does the photo contain plastic?",
+    "at_app_threshold_0.25": {
+      "threshold": 0.25,
+      "photos": 172,
+      "photos_with_class": 138,
+      "accuracy": 0.7209,
+      "precision": 0.8214,
+      "recall": 0.8333,
+      "balanced_accuracy": 0.549,
+      "majority_baseline_accuracy": 0.8023,
+      "counts": {
+        "tp": 115,
+        "tn": 9,
+        "fp": 25,
+        "fn": 23
+      }
+    },
+    "at_chosen_threshold": {
+      "threshold": 0.63,
+      "photos": 172,
+      "photos_with_class": 138,
+      "accuracy": 0.6047,
+      "precision": 0.85,
+      "recall": 0.6159,
+      "balanced_accuracy": 0.5874,
+      "majority_baseline_accuracy": 0.8023,
+      "counts": {
+        "tp": 85,
+        "tn": 19,
+        "fp": 15,
+        "fn": 53
+      },
+      "threshold_source": "chosen on this validation split"
+    },
+    "target_accuracy": 0.85
+  },
+  "latency_ms": {
+    "p50": 99.1,
+    "p95": 126.6,
+    "note": "model forward + pre/post-processing per image on this CPU, one image at a time"
+  },
+  "target_map50": 0.85,
+  "meets_target": false
+}

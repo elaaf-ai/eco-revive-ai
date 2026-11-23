@@ -1,10 +1,12 @@
 import type {
   CatalogItem,
   DetectResponse,
+  FeedbackRequest,
   GuideRequest,
   GuideResponse,
   HistoryResponse,
   ItemSummary,
+  LearningStats,
   Readiness,
 } from "./types";
 
@@ -184,6 +186,18 @@ export function fetchHistory(signal?: AbortSignal, limit = 20): Promise<HistoryR
 
 export function clearHistory(signal?: AbortSignal): Promise<{ deleted: number }> {
   return request<{ deleted: number }>("/v1/history", { method: "DELETE" }, { signal, timeoutMs: 15000 });
+}
+
+export function sendFeedback(body: FeedbackRequest): Promise<{ id: string; photo_saved: boolean }> {
+  return request<{ id: string; photo_saved: boolean }>(
+    "/v1/feedback",
+    { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } },
+    { timeoutMs: 20000 },
+  );
+}
+
+export function fetchLearning(signal?: AbortSignal): Promise<LearningStats> {
+  return request<LearningStats>("/v1/learning", { method: "GET" }, { signal, timeoutMs: 15000 });
 }
 
 export async function fetchReadiness(signal?: AbortSignal): Promise<Readiness> {

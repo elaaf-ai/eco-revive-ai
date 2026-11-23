@@ -73,6 +73,13 @@ Uploaded images live only in memory for the duration of a request and are never 
 - **Locally:** set `ECOREVIVE_DATABASE_URL=sqlite:///data/ecorevive.db` in `backend/.env`. Leave it unset to turn history off; scanning still works and the History link is hidden.
 - **Outage:** scans still succeed with `scan_id: null`; `/v1/history` returns `503 history_unavailable`. Metrics: `history_saved`, `history_save_failed`.
 
+### Feedback and training photos (adaptive learning)
+
+- `POST /v1/feedback` stores whether a detected item was right. A photo is stored **only** when the user ticked "Share this photo"; it is re-encoded on the server, so EXIF metadata such as GPS is dropped.
+- Table `feedback` in the same database. Clearing history deletes that browser's feedback and photos too.
+- Export for training: `ml/scripts/export_feedback.py` (see docs/ADAPTIVE_LEARNING.md). Treat exported photos as personal data: keep them in the team's approved storage, not in Git.
+- Metrics: `feedback_correct`, `feedback_wrong`, `vision_boxes_labelled`, `vision_boxes_removed`.
+
 ### Gemini vision check
 
 - Used for captures and uploads (`?verify=true`) and for item names in guides. Live preview frames never call Gemini.

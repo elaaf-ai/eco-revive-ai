@@ -258,3 +258,15 @@ def test_numbered_box_drawing_and_text():
     drawn = draw_numbered_boxes(jpeg, [(0.1, 0.1, 0.5, 0.5), (0.4, 0.4, 0.9, 0.9)])
     assert drawn[:2] == bytes([0xFF, 0xD8]) and drawn != jpeg
     assert box_list_text([(0.1, 0.2, 0.3, 0.4)]) == "Box 1: 10%, 20%, 30%, 40%"
+
+
+def test_plastic_type_from_gemini_or_the_catalogue(settings):
+    labels = BoxLabels(boxes=[
+        BoxLabel(number=1, item_name="plastic water bottle", is_plastic=True, resin_code=0),
+        BoxLabel(number=2, item_name="yogurt pot", is_plastic=True, resin_code=5, resin_certain=True),
+    ])
+    with app_with(settings, FakeVision(PhotoVerdict(contains_plastic=True), labels=labels)) as c:
+        first, second = detect(c).json()["detections"]
+    assert first["catalog_code"] == "001"
+    assert first["plastic_type"] == {"number": 1, "type": "PET", "certain": False, "source": "catalog"}
+    assert second["plastic_type"] == {"number": 5, "type": "PP", "certain": True, "source": "gemini"}

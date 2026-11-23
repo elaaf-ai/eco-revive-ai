@@ -81,16 +81,16 @@ class GuideService {
   }
 
   /// Never throws: any failure becomes a labelled curated guide.
-  Future<Guide> fetch(String className, double confidence, {required bool confirmed}) async {
+  Future<Guide> fetch(String className, double confidence, {required bool confirmed, String? itemHint}) async {
     try {
-      return await _fetch(className, confidence, confirmed: confirmed);
+      return await _fetch(className, confidence, confirmed: confirmed, itemHint: itemHint);
     } catch (_) {
       return curated(className, 'Offline guide. The server reply could not be read.');
     }
   }
 
   /// Hazardous items never leave the device: they always get the curated disposal guide.
-  Future<Guide> _fetch(String className, double confidence, {required bool confirmed}) async {
+  Future<Guide> _fetch(String className, double confidence, {required bool confirmed, String? itemHint}) async {
     if (className == 'Hazardous') {
       return curated(className, 'Hazardous items always get team-written safety guidance.');
     }
@@ -98,7 +98,12 @@ class GuideService {
       return curated(className, 'Offline guide. No EcoRevive server is configured in this build.');
     }
     final key = List.generate(24, (_) => Random.secure().nextInt(36).toRadixString(36)).join();
-    final body = jsonEncode({'class_name': className, 'confidence': confidence, 'confirmed_by_user': confirmed});
+    final body = jsonEncode({
+      'class_name': className,
+      'confidence': confidence,
+      'confirmed_by_user': confirmed,
+      if (itemHint != null && itemHint.isNotEmpty) 'item_hint': itemHint,
+    });
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         final response = await _client

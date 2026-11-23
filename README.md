@@ -2,14 +2,25 @@
 
 Scan a piece of plastic waste, or type an item code such as 001 (water bottle), to get its recycling steps and an upcycling project. The 14 coded items are listed in shared/plastic_catalog.json and on the site.
 
-**Live (preview):** https://ecorevive-ai.vercel.app. Hosted on Vercel's free plan, plastic-only mode, model `0.2.0-preview-small` (locked-test photo accuracy 68%, below the 85% target; see docs/EVALUATION.md).
+**Live:** https://ecorevive-ai.vercel.app (Vercel free plan, Neon Postgres, plastic-only mode). On the locked test photos the system answers "does this photo contain plastic?" correctly **81.0%** of the time (balanced accuracy 78.0%); see [docs/EVALUATION.md](docs/EVALUATION.md).
 
-- **Website** (primary): camera or photo upload → bounding boxes → pick an item → guide. React + FastAPI, one container.
-- **Android app**: Home → Camera → Results with the TFLite model running on the phone.
+- **Website** (primary): camera or photo upload → numbered, named boxes ("Plastic 1 · plastic cup · #1 PET") → pick an item → guide → "Was it right?".
+- **Android app**: Home → Camera → Results with the TFLite model on the phone, then the same AI check from the server when online.
 - **Detector**: YOLO11, five classes: Plastic, Glass, Metal, Organic, Hazardous (`shared/classes.json`).
+- **AI check**: Gemini vision confirms plastic per box, names the item and its likely resin code, and removes wrong boxes.
 - **Guides**: Gemini on the server, with curated guides for hazardous items and as a fallback (`shared/curated_guides.json`).
+- **Adaptive learning**: user feedback and consented photos become training data; a retrained model goes live only if it scores better ([docs/ADAPTIVE_LEARNING.md](docs/ADAPTIVE_LEARNING.md)).
 
-> **Model status:** `0.1.0-preview` has been trained in Colab and exported, but it has **not** passed the locked test evaluation. The 0.85 mAP@0.50 target has not been shown. See [docs/EVALUATION.md](docs/EVALUATION.md).
+## Project objectives
+
+| Objective | How it is met | Evidence |
+|---|---|---|
+| AI-based waste detection | YOLO11s detector (web: ONNX on the server; phone: TFLite on device) plus a Gemini vision check per box | Locked test 81.0% photo accuracy, 78.0% balanced (detector alone 68.1%): `ml/reports/hybrid/test_ledger.jsonl` |
+| AI-generated upcycling guides | Gemini writes a guide for the identified item, with safety filters, hazard rules, curated fallbacks and "Another idea" | `backend/app/guides.py`, `backend/tests/test_guides.py` |
+| Low cost and low latency | Free tiers only (Vercel, Neon, Kaggle, Gemini). About 1 s per scan without the AI check, about 3 s with it, about 0.2 s on the phone offline; live preview at about 1 frame per second | Load test in docs/EVALUATION.md; smoke test in `deploy/deploy_vercel.py` |
+| Plastic core identification | Every AI-checked box gets its likely resin code (#1 PET … #7 Other), marked "likely" unless the number is visible or the item is almost always that plastic, and is linked to the item code (001–014) | `backend/app/vision.py`, `test_plastic_type_from_gemini_or_the_catalogue` |
+| Mobile app deployment | Flutter Android app with on-device detection, the server AI check, names, plastic types and feedback; the website also works on phones | `mobile/`, `flutter test` (19 tests); APK in `mobile/build/app/outputs/flutter-apk/` |
+| Adaptive learning system | Feedback ("Was it right?") and consented photos → `export_feedback.py` builds the next training set → Kaggle retrain → `promote_model.py` promotes only a better model | [docs/ADAPTIVE_LEARNING.md](docs/ADAPTIVE_LEARNING.md), `ml/tests/test_adaptive_learning.py`, `ml/reports/promotion_ledger.jsonl` |
 
 ## Repository
 

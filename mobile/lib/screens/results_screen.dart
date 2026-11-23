@@ -5,6 +5,7 @@ import '../detection/yolo.dart';
 import '../guides.dart';
 import '../main.dart';
 import '../theme.dart';
+import '../vision.dart';
 
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key, required this.services, required this.result});
@@ -21,28 +22,72 @@ class _ResultsScreenState extends State<ResultsScreen> {
   bool _confirming = false;
   Future<Guide>? _guide;
 
+  /// The server's AI check: null while waiting or when unavailable (then the phone's result stands).
+  CheckedScan? _checked;
+  bool _checking = false;
+  final Map<int, bool> _feedbackSent = {};
+
   List<String> get _classes => widget.services.shared.classes;
   List<String> get _enabled => widget.services.shared.enabledClasses;
-  late final List<Detection> _shown = [
-    for (final d in widget.result.detections)
-      if (_enabled.contains(_classes[d.classId])) d,
-  ];
+  late List<Detection> _shown = _onDevice();
+
+  List<Detection> _onDevice() {
+    final kept = [
+      for (final d in widget.result.detections)
+        if (_enabled.contains(_classes[d.classId])) d,
+    ]..sort((a, b) => b.confidence.compareTo(a.confidence));
+    // Renumber from the most confident so labels read "Plastic 1", "Plastic 2" like the website.
+    return [
+      for (var i = 0; i < kept.length; i++)
+        Detection(id: i, classId: kept[i].classId, confidence: kept[i].confidence, box: kept[i].box),
+    ];
+  }
+
   ScanQuality get _quality => assessScan(_shown, competitors: widget.result.detections);
   bool get _uncertain => _quality == ScanQuality.lowConfidence || _quality == ScanQuality.ambiguous;
+
+  CheckedDetection? _info(int id) {
+    for (final c in _checked?.detections ?? const <CheckedDetection>[]) {
+      if (c.detection.id == id) return c;
+    }
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
     if (_shown.length == 1) _select(_shown.first.id);
+    final vision = widget.services.vision;
+    if (vision.enabled) {
+      _checking = true;
+      vision.check(widget.result.jpeg, _classes).then((checked) {
+        if (!mounted) return;
+        setState(() {
+          _checking = false;
+          if (checked == null) return;
+          _checked = checked;
+          _shown = [for (final c in checked.detections) if (_enabled.contains(_classes[c.detection.classId])) c.detection];
+          _selected = null;
+          _guide = null;
+          _confirming = false;
+        });
+        if (_shown.length == 1) _select(_shown.first.id);
+      });
+    }
   }
 
   void _select(int id) {
     final detection = _shown.firstWhere((d) => d.id == id);
+    final info = _info(id);
     setState(() {
       _selected = id;
       _material = _classes[detection.classId];
-      _confirming = _uncertain || detection.confidence < 0.5;
-      _guide = _confirming ? null : widget.services.guides.fetch(_material!, detection.confidence, confirmed: false);
+      // A box the AI check confirmed needs no manual confirmation.
+      _confirming = !(info?.aiChecked ?? false) && (_uncertain || detection.confidence < 0.5);
+      _guide = _confirming
+          ? null
+          : widget.services.guides.fetch(_material!, detection.confidence,
+              confirmed: info?.aiChecked ?? false, itemHint: info?.itemName);
     });
   }
 
@@ -50,8 +95,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final detection = _shown.firstWhere((d) => d.id == _selected);
     setState(() {
       _confirming = false;
-      _guide = widget.services.guides.fetch(_material!, detection.confidence, confirmed: true);
+      _guide = widget.services.guides.fetch(_material!, detection.confidence,
+          confirmed: true, itemHint: _info(detection.id)?.itemName);
     });
+  }
+
+  Future<void> _sendFeedback(CheckedDetection item, bool correct) async {
+    final ok = await widget.services.vision
+        .sendFeedback(item, correct: correct, modelVersion: _checked?.modelVersion ?? 'unknown');
+    if (!mounted) return;
+    setState(() => _feedbackSent[item.detection.id] = ok);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Thanks! Your answer will help train the next model.' : 'Could not send your answer.'),
+    ));
   }
 
   @override
@@ -70,12 +126,32 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 fit: StackFit.expand,
                 children: [
                   Image.memory(result.jpeg, fit: BoxFit.fill, semanticLabel: 'Scanned photo'),
-                  CustomPaint(painter: _BoxPainter(_shown, _classes, _selected)),
+                  CustomPaint(painter: _BoxPainter(_shown, _classes, _selected, _checked)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
+          if (_checking)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: Row(children: [
+                SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                SizedBox(width: 10),
+                Text('Checking each item with the AI…', style: TextStyle(color: Palette.muted)),
+              ]),
+            ),
+          if (_checked != null && _checked!.decidedByAi) ...[
+            _banner(_checked!.message, _checked!.containsPlastic ? Palette.lime : Palette.amber),
+            const SizedBox(height: 8),
+          ],
+          if (_checked != null && _checked!.removed.isNotEmpty) ...[
+            Text(
+                'The AI check removed ${_checked!.removed.length} box${_checked!.removed.length == 1 ? '' : 'es'} '
+                'that were not plastic (${_checked!.removed.join(', ')}).',
+                style: const TextStyle(color: Palette.muted, fontSize: 13)),
+            const SizedBox(height: 8),
+          ],
           if (_shown.isEmpty) ..._empty() else ..._results(),
         ],
       ),
@@ -112,7 +188,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
         ],
       ),
-      Text('Ran on this phone in ${widget.result.inferenceMs} ms', style: const TextStyle(color: Palette.muted)),
+      Text(
+          _checked == null
+              ? 'Ran on this phone in ${widget.result.inferenceMs} ms'
+              : 'Ran on this phone in ${widget.result.inferenceMs} ms, then checked by the AI',
+          style: const TextStyle(color: Palette.muted)),
       if (_uncertain) ...[
         const SizedBox(height: 10),
         _banner('The scan is not sure. Retake the photo closer, in good light, or confirm the material.', Palette.amber),
@@ -124,6 +204,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       if (_selected != null && _confirming) _confirmCard(),
       if (_selected != null && !_confirming && _guide != null)
         FutureBuilder<Guide>(
+          key: ValueKey(_guide),
           future: _guide,
           builder: (context, snapshot) => snapshot.hasData
               ? _GuideCard(guide: snapshot.data!)
@@ -141,11 +222,42 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   ]),
                 ),
         ),
+      if (_selected != null && _info(_selected!) != null) _feedbackCard(_info(_selected!)!),
     ];
+  }
+
+  Widget _feedbackCard(CheckedDetection item) {
+    final sent = _feedbackSent[item.detection.id];
+    final label = 'Plastic ${item.number}${item.itemName != null ? ' (${item.itemName})' : ''}';
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Palette.line),
+      ),
+      child: sent == true
+          ? const Text('Thanks! Your answer will help train the next model.',
+              style: TextStyle(color: Palette.aqua, fontWeight: FontWeight.w700))
+          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Was $label right?', style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, children: [
+                OutlinedButton.icon(
+                    onPressed: () => _sendFeedback(item, true), icon: const Icon(Icons.check), label: const Text('Yes')),
+                OutlinedButton.icon(
+                    onPressed: () => _sendFeedback(item, false),
+                    icon: const Icon(Icons.close),
+                    label: const Text("No, it's wrong")),
+              ]),
+            ]),
+    );
   }
 
   Widget _detectionTile(Detection d) {
     final name = _classes[d.classId];
+    final info = _info(d.id);
     final color = Palette.classColors[name]!;
     final active = d.id == _selected;
     return Padding(
@@ -161,7 +273,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           onTap: () => _select(d.id),
           child: Semantics(
             selected: active,
-            label: '$name ${(d.confidence * 100).round()} percent',
+            label: '$name ${d.id + 1} ${info?.itemName ?? ''} ${(d.confidence * 100).round()} percent',
             child: Padding(
               padding: const EdgeInsets.all(10),
               child: Row(children: [
@@ -174,7 +286,23 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       style: const TextStyle(color: Palette.limeInk, fontWeight: FontWeight.w800)),
                 ),
                 const SizedBox(width: 12),
-                Expanded(child: Text(name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('$name ${d.id + 1}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                    if (info?.itemName != null)
+                      Text(info!.itemName!, style: const TextStyle(color: Palette.aqua, fontWeight: FontWeight.w600)),
+                    if (info?.plasticType != null)
+                      Text(
+                          '${info!.plasticType!.label}${info.catalogCode != null ? ' · item ${info.catalogCode}' : ''}',
+                          style: const TextStyle(color: Palette.lime, fontSize: 12, fontWeight: FontWeight.w700)),
+                    if (info?.aiChecked ?? false)
+                      const Row(children: [
+                        Icon(Icons.verified, size: 14, color: Palette.lime),
+                        SizedBox(width: 4),
+                        Text('AI-checked', style: TextStyle(color: Palette.lime, fontSize: 12, fontWeight: FontWeight.w700)),
+                      ]),
+                  ]),
+                ),
                 Text('${(d.confidence * 100).round()}%',
                     style: const TextStyle(color: Palette.muted, fontWeight: FontWeight.w700)),
               ]),
@@ -231,10 +359,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
 }
 
 class _BoxPainter extends CustomPainter {
-  _BoxPainter(this.detections, this.classes, this.selected);
+  _BoxPainter(this.detections, this.classes, this.selected, this.checked);
   final List<Detection> detections;
   final List<String> classes;
   final int? selected;
+  final CheckedScan? checked;
+
+  String _label(Detection d, String name) {
+    for (final c in checked?.detections ?? const <CheckedDetection>[]) {
+      if (c.detection.id == d.id && c.itemName != null) {
+        return '$name ${d.id + 1} · ${c.itemName}${c.aiChecked ? ' ✓' : ''}';
+      }
+    }
+    return '$name ${d.id + 1} ${(d.confidence * 100).round()}%';
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -252,7 +390,7 @@ class _BoxPainter extends CustomPainter {
       );
       final label = TextPainter(
         text: TextSpan(
-          text: '$name ${(d.confidence * 100).round()}%',
+          text: _label(d, name),
           style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
         ),
         textDirection: TextDirection.ltr,
@@ -265,7 +403,8 @@ class _BoxPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _BoxPainter old) => old.selected != selected || old.detections != detections;
+  bool shouldRepaint(covariant _BoxPainter old) =>
+      old.selected != selected || old.detections != detections || old.checked != checked;
 }
 
 class _GuideCard extends StatelessWidget {

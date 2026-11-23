@@ -1,7 +1,7 @@
-import { Camera, History as HistoryIcon, LoaderCircle, Trash2 } from "lucide-react";
+import { Camera, GraduationCap, History as HistoryIcon, LoaderCircle, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { ApiError, clearHistory, fetchHistory } from "../api";
-import type { HistoryResponse, QualityStatus, SavedScan } from "../types";
+import { ApiError, clearHistory, fetchHistory, fetchLearning } from "../api";
+import type { HistoryResponse, LearningStats, QualityStatus, SavedScan } from "../types";
 
 type State =
   | { status: "loading" }
@@ -51,6 +51,16 @@ export function History({ announce, enabled }: { announce: (message: string) => 
   const [state, setState] = useState<State>({ status: "loading" });
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [learning, setLearning] = useState<LearningStats | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    fetchLearning(controller.signal)
+      .then(setLearning)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [enabled]);
 
   const settle = (promise: Promise<HistoryResponse>, signal?: AbortSignal) =>
     promise
@@ -146,6 +156,35 @@ export function History({ announce, enabled }: { announce: (message: string) => 
               <span className="stat-label">Found by everyone using EcoRevive</span>
             </div>
           </section>
+
+          {learning?.enabled && (
+            <section className="learning" aria-labelledby="learning-title">
+              <h2 id="learning-title" className="section-title">
+                <GraduationCap size={20} aria-hidden /> Model learning
+              </h2>
+              <p className="muted">
+                After a scan, answer “Was it right?”. Shared photos become training data, and a retrained model
+                goes live only if it scores better than model {learning.model_version ?? "current"}.
+              </p>
+              <dl className="learning-stats">
+                <div>
+                  <dt>Answers collected</dt>
+                  <dd>{learning.feedback}</dd>
+                </div>
+                <div>
+                  <dt>Marked right / wrong</dt>
+                  <dd>
+                    {learning.correct} / {learning.wrong}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Training photos shared</dt>
+                  <dd>{learning.training_photos}</dd>
+                </div>
+              </dl>
+              <p className="hint">{learning.next_step}</p>
+            </section>
+          )}
 
           {state.data.scans.length === 0 ? (
             <div className="panel-empty history-empty">

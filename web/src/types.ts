@@ -20,6 +20,40 @@ export interface Detection {
   item_name?: string | null;
   /** The AI check looked at this box and confirmed it is plastic. */
   ai_checked?: boolean;
+  /** Likely resin code (the number in the recycling triangle). */
+  plastic_type?: PlasticType | null;
+  /** Matching item code (001-014) when the item is in the catalogue. */
+  catalog_code?: string | null;
+}
+
+export interface PlasticType {
+  number: number;
+  type: string;
+  /** False means "likely": check the number printed on the item. */
+  certain: boolean;
+  source: "gemini" | "catalog";
+}
+
+export interface FeedbackRequest {
+  correct: boolean;
+  class_name: WasteClass;
+  confidence: number;
+  box: Box;
+  model_version: string;
+  item_name?: string | null;
+  scan_id?: string | null;
+  share_photo: boolean;
+  image?: string;
+}
+
+export interface LearningStats {
+  enabled: boolean;
+  feedback: number;
+  correct: number;
+  wrong: number;
+  training_photos: number;
+  model_version: string | null;
+  next_step: string;
 }
 
 /** "Plastic 1", "Plastic 2" ...: detections are numbered from the most confident. */
