@@ -16,7 +16,14 @@ export interface Detection {
   class_name: WasteClass;
   confidence: number;
   box: Box;
+  /** What the AI check sees in this box, for example "plastic cup". */
+  item_name?: string | null;
+  /** The AI check looked at this box and confirmed it is plastic. */
+  ai_checked?: boolean;
 }
+
+/** "Plastic 1", "Plastic 2" ...: detections are numbered from the most confident. */
+export const itemNumber = (detection: Detection) => detection.id + 1;
 
 export interface ModelInfo {
   version: string;
@@ -41,6 +48,8 @@ export interface DetectResponse {
   scan_id?: string | null;
   /** Final plastic verdict from the detector and the Gemini vision check (captures and uploads). */
   verdict?: Verdict | null;
+  /** What the AI check saw in boxes it removed as not plastic, for example "person". */
+  ai_removed?: string[];
 }
 
 export interface Verdict {

@@ -49,11 +49,12 @@ from .schemas import (
     Verdict,
     WasteClass,
 )
-from .vision import GeminiVision, VisionError, VisionProvider, clean_item_name, to_jpeg
+from .vision import BoxLabels, GeminiVision, VisionError, VisionProvider, clean_item_name, to_jpeg
 
 logger = logging.getLogger("ecorevive.api")
 CLIENT_ID_HEADER = "X-Client-Id"
 MODEL_RETRY_BASE_S = 5
+MAX_LABELLED_BOXES = 10
 MODEL_RETRY_MAX_S = 300
 ERRORS: dict[int | str, dict[str, Any]] = {
     code: {"model": ErrorResponse} for code in (400, 409, 413, 415, 422, 429, 503, 504)
@@ -342,6 +343,19 @@ def create_app(
         jpeg = to_jpeg(image) if want_jpeg else None
         return detections, {"width": image.width, "height": image.height}, quality_hints(image), elapsed, jpeg
 
+    async def label(ranked: list[RawDetection], jpeg: bytes | None) -> BoxLabels | None:
+        """Ask Gemini what each box shows. None when there is nothing to label or Gemini is unavailable."""
+        if not ranked or jpeg is None or app.state.vision is None:
+            return None
+        try:
+            labels: BoxLabels = await app.state.vision.label_boxes(jpeg, [d.box for d in ranked])
+            metrics.incr("vision_boxes_labelled")
+            return labels
+        except VisionError as exc:
+            metrics.incr(f"vision_error_{exc.reason}")
+            log(logger, "label_unavailable", logging.WARNING, reason=exc.reason)
+            return None
+
     async def decide(shown: list[RawDetection], jpeg: bytes | None) -> Verdict:
         """Final "contains plastic?" answer. The rule and thresholds were chosen on the validation split."""
         score = max((d.confidence for d in shown), default=0.0)
@@ -428,7 +442,27 @@ def create_app(
             quality = assess(shown, classes, settings.low_confidence, competitors=detections, item_word=item_word)
             quality.image_hints = hints
             ranked = sorted(shown, key=lambda d: d.confidence, reverse=True)
-            verdict = await decide(shown, jpeg) if verify else None
+            names: dict[int, str] = {}
+            removed: list[str] = []
+            verdict = None
+            if verify:
+                # The photo verdict (the measured rule) and the per-box labels run in parallel.
+                ranked = ranked[:MAX_LABELLED_BOXES]
+                verdict, labels = await asyncio.gather(decide(shown, jpeg), label(ranked, jpeg))
+                if labels is not None:
+                    by_number = {b.number: b for b in labels.boxes}
+                    kept: list[RawDetection] = []
+                    for number, d in enumerate(ranked, start=1):
+                        entry = by_number.get(number)
+                        name = clean_item_name(entry.item_name) if entry else None
+                        if entry is not None and not entry.is_plastic:
+                            removed.append(name or "not plastic")
+                            continue
+                        kept.append(d)
+                        if entry is not None and name:
+                            names[id(d)] = name
+                    ranked = kept
+                    metrics.incr("vision_boxes_removed", len(removed))
             scan_id = None
             client = history_client(request)
             if save and client and app.state.history is not None:
@@ -457,9 +491,12 @@ def create_app(
                         class_name=WasteClass(classes[d.class_id]),
                         confidence=round(d.confidence, 4),
                         box=Box(x1=d.box[0], y1=d.box[1], x2=d.box[2], y2=d.box[3]),
+                        item_name=names.get(id(d)),
+                        ai_checked=id(d) in names,
                     )
                     for i, d in enumerate(ranked)
                 ],
+                ai_removed=removed,
                 quality=quality,
                 inference_ms=round(elapsed, 1),
                 scan_id=scan_id,

@@ -216,11 +216,6 @@ export function Scanner({
           imageUrl={frame?.url}
           showVideo={showingCamera && cameraLive}
           dimmed={scan.status === "scanning"}
-          aiConfirmed={
-            !showingCamera &&
-            scan.status === "done" &&
-            Boolean(scan.result.verdict?.contains_plastic && scan.result.verdict.gemini === "plastic")
-          }
         >
           {showingCamera && !cameraLive && (
             <div className="stage-placeholder">

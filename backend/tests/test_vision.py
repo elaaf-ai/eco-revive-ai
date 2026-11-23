@@ -12,16 +12,34 @@ from PIL import Image
 
 from app.guides import GeneratedGuide
 from app.main import create_app
-from app.vision import ItemIdentity, PhotoVerdict, VisionError, clean_item_name, crop_item
+from app.vision import (
+    BoxLabel,
+    BoxLabels,
+    ItemIdentity,
+    PhotoVerdict,
+    VisionError,
+    box_list_text,
+    clean_item_name,
+    crop_item,
+    draw_numbered_boxes,
+    to_jpeg,
+)
 
 
 class FakeVision:
     model = "fake-vision"
 
-    def __init__(self, photo: PhotoVerdict | Exception, item: ItemIdentity | Exception | None = None):
-        self.photo, self.item = photo, item
+    def __init__(
+        self,
+        photo: PhotoVerdict | Exception,
+        item: ItemIdentity | Exception | None = None,
+        labels: BoxLabels | Exception | None = None,
+    ):
+        self.photo, self.item, self.labels = photo, item, labels
         self.photo_calls = 0
         self.item_calls = 0
+        self.label_calls = 0
+        self.boxes: list = []
 
     async def check_photo(self, jpeg: bytes) -> PhotoVerdict:
         assert jpeg[:2] == b"\xff\xd8"
@@ -36,6 +54,13 @@ class FakeVision:
         if isinstance(self.item, Exception) or self.item is None:
             raise self.item or VisionError("timeout")
         return self.item
+
+    async def label_boxes(self, jpeg: bytes, boxes: list) -> BoxLabels:
+        self.label_calls += 1
+        self.boxes = boxes
+        if isinstance(self.labels, Exception) or self.labels is None:
+            raise self.labels or VisionError("timeout")
+        return self.labels
 
 
 class RecordingGuides:
@@ -196,3 +221,40 @@ def test_photo_item_names_are_passed_as_naming_hints(settings):
         body = c.post("/v1/guides", json=guide_body(image=crop_b64(), context_items=["Eyeglasses frame!"])).json()
     assert vision.context == ["eyeglasses frame"]
     assert body["identified_item"] == "glasses frame"
+
+
+# The fixture model returns two shown boxes: Plastic 0.9 and Hazardous 0.6 (all classes enabled in tests).
+def test_boxes_are_named_and_non_plastic_ones_removed(settings):
+    labels = BoxLabels(boxes=[
+        BoxLabel(number=1, item_name="Plastic cup", is_plastic=True),
+        BoxLabel(number=2, item_name="person", is_plastic=False),
+    ])
+    vision = FakeVision(PhotoVerdict(contains_plastic=True, plastic_items=["plastic cup"]), labels=labels)
+    with app_with(settings, vision) as c:
+        body = detect(c).json()
+    assert vision.label_calls == 1 and len(vision.boxes) == 2
+    assert [(d["id"], d["item_name"], d["ai_checked"]) for d in body["detections"]] == [(0, "plastic cup", True)]
+    assert body["ai_removed"] == ["person"]
+
+
+def test_labelling_failure_keeps_every_box_unchecked(settings):
+    vision = FakeVision(PhotoVerdict(contains_plastic=True), labels=VisionError("http_429"))
+    with app_with(settings, vision) as c:
+        body = detect(c).json()
+    assert len(body["detections"]) == 2
+    assert all(d["item_name"] is None and d["ai_checked"] is False for d in body["detections"])
+    assert body["ai_removed"] == []
+
+
+def test_live_frames_are_not_labelled(settings):
+    vision = FakeVision(PhotoVerdict(contains_plastic=True), labels=BoxLabels(boxes=[]))
+    with app_with(settings, vision) as c:
+        detect(c, verify=False)
+    assert vision.label_calls == 0
+
+
+def test_numbered_box_drawing_and_text():
+    jpeg = to_jpeg(Image.new("RGB", (640, 480), (120, 120, 120)))
+    drawn = draw_numbered_boxes(jpeg, [(0.1, 0.1, 0.5, 0.5), (0.4, 0.4, 0.9, 0.9)])
+    assert drawn[:2] == bytes([0xFF, 0xD8]) and drawn != jpeg
+    assert box_list_text([(0.1, 0.2, 0.3, 0.4)]) == "Box 1: 10%, 20%, 30%, 40%"

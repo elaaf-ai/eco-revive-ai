@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { ApiError, fetchGuide } from "../api";
 import { CLASS_META, percent } from "../classes";
 import { cropToBase64 } from "../frames";
-import { WASTE_CLASSES, type DetectResponse, type Guide, type WasteClass } from "../types";
+import { WASTE_CLASSES, itemNumber, type DetectResponse, type Guide, type WasteClass } from "../types";
 import { GuideCard } from "./GuideCard";
 
 type GuideState =
@@ -45,10 +45,13 @@ export function ResultsPanel({
   const verdict = result.verdict ?? null;
   // The Gemini vision check is an independent second opinion. When it confirms plastic, the user
   // does not need to confirm the material by hand.
-  const aiConfirmed = Boolean(verdict?.contains_plastic && verdict.gemini === "plastic");
+  const aiConfirmed = Boolean(selected?.ai_checked);
   const aiRejected = Boolean(verdict && !verdict.contains_plastic && verdict.gemini === "no_plastic");
   const uncertain =
     !aiConfirmed && (result.quality.status === "low_confidence" || result.quality.status === "ambiguous" || aiRejected);
+  const removed = result.ai_removed ?? [];
+  // When the detector missed an item the AI check saw, the user can still ask for its guide.
+  const [namedItem, setNamedItem] = useState<string | null>(null);
   const [guide, setGuide] = useState<GuideState>({ status: "idle" });
   const [material, setMaterial] = useState<WasteClass | null>(null);
   const [request, setRequest] = useState<{ cls: WasteClass; confirmed: boolean } | null>(null);
@@ -71,7 +74,9 @@ export function ResultsPanel({
   useEffect(() => {
     if (!request || !selected) return;
     const controller = new AbortController();
-    const crop = photo ? cropToBase64(photo, selected.box).catch(() => undefined) : Promise.resolve(undefined);
+    const named = selected.item_name ?? null;
+    const crop =
+      photo && !named ? cropToBase64(photo, selected.box).catch(() => undefined) : Promise.resolve(undefined);
     crop
       .then((image) =>
         fetchGuide(
@@ -79,6 +84,7 @@ export function ResultsPanel({
             class_name: request.cls,
             confidence: selected.confidence,
             confirmed_by_user: request.confirmed,
+            ...(named ? { item_hint: named } : {}),
             ...(image ? { image } : {}),
             ...(image && verdict?.plastic_items.length ? { context_items: verdict.plastic_items } : {}),
           },
@@ -90,7 +96,7 @@ export function ResultsPanel({
           status: "ready",
           guide: response.guide,
           cached: response.cached,
-          item: response.identified_item ?? null,
+          item: response.identified_item ?? named,
         });
         announce(
           response.identified_item
@@ -113,12 +119,36 @@ export function ResultsPanel({
   }, [request, selected, announce, photo, verdict]);
 
   if (result.detections.length === 0) {
-    const aiSeesPlastic = verdict?.contains_plastic && verdict.gemini === "plastic";
+    const aiSeesPlastic = Boolean(verdict?.contains_plastic && verdict.gemini === "plastic");
+    const seen = aiSeesPlastic && verdict ? verdict.plastic_items : [];
     return (
       <div className="panel-empty">
         <HelpCircle size={28} aria-hidden />
         <h2>{aiSeesPlastic ? "Plastic seen, but not boxed" : "Nothing recognised"}</h2>
-        <p>{aiSeesPlastic && verdict ? verdict.message : result.quality.message}</p>
+        <p>
+          {aiSeesPlastic
+            ? `The AI check sees ${seen.length ? seen.join(", ") : "plastic"}, but the detector could not box it. Pick an item for its guide, or retake the photo closer.`
+            : result.quality.message}
+        </p>
+        {removed.length > 0 && (
+          <p className="muted small">The AI check removed {removed.length} box{removed.length === 1 ? "" : "es"} that were not plastic ({removed.join(", ")}).</p>
+        )}
+        {seen.length > 0 && (
+          <div className="chips" role="group" aria-label="Items the AI check saw">
+            {seen.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className={`chip-button${namedItem === name ? " is-active" : ""}`}
+                aria-pressed={namedItem === name}
+                onClick={() => setNamedItem(name)}
+              >
+                Guide for {name}
+              </button>
+            ))}
+          </div>
+        )}
+        {namedItem && <NamedGuide key={namedItem} name={namedItem} announce={announce} />}
         {result.quality.image_hints.map((hint) => (
           <p key={hint} className="hint">
             {HINTS[hint]}
@@ -148,6 +178,12 @@ export function ResultsPanel({
           <span>{verdict.message}</span>
         </p>
       )}
+      {removed.length > 0 && (
+        <p className="muted small" data-testid="ai-removed">
+          The AI check removed {removed.length} box{removed.length === 1 ? "" : "es"} that were not plastic (
+          {removed.join(", ")}).
+        </p>
+      )}
       {uncertain && !aiRejected && <p className="notice notice-warn">{result.quality.message}</p>}
       {result.quality.image_hints.map((hint) => (
         <p key={hint} className="hint">
@@ -172,8 +208,9 @@ export function ResultsPanel({
                   {meta.short}
                 </span>
                 <span className="detection-name">
-                  {detection.class_name}
-                  {aiConfirmed && (
+                  {detection.class_name} {itemNumber(detection)}
+                  {detection.item_name && <span className="detection-item">{detection.item_name}</span>}
+                  {detection.ai_checked && (
                     <span className="detection-check">
                       <BadgeCheck size={14} aria-hidden /> AI-checked
                     </span>
@@ -245,4 +282,32 @@ export function ResultsPanel({
       {selected && guide.status === "ready" && <GuideCard guide={guide.guide} cached={guide.cached} />}
     </div>
   );
+}
+
+/** Guide for an item the AI check named but the detector did not box. */
+function NamedGuide({ name, announce }: { name: string; announce: (message: string) => void }) {
+  const [state, setState] = useState<GuideState>({ status: "loading" });
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchGuide({ class_name: "Plastic", confidence: 1, confirmed_by_user: true, item_hint: name }, controller.signal)
+      .then((response) => {
+        setState({ status: "ready", guide: response.guide, cached: response.cached, item: name });
+        announce(`Guide ready: ${response.guide.title}`);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setState({ status: "error", message: error instanceof ApiError ? error.message : "The guide could not load." });
+      });
+    return () => controller.abort();
+  }, [name, announce]);
+  if (state.status === "loading") {
+    return (
+      <p className="loading" role="status">
+        <Loader2 className="spin" size={18} aria-hidden /> Preparing the guide for {name}…
+      </p>
+    );
+  }
+  if (state.status === "error") return <p className="notice notice-error">{state.message}</p>;
+  if (state.status === "ready") return <GuideCard guide={state.guide} cached={state.cached} />;
+  return null;
 }

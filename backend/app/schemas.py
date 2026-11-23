@@ -31,6 +31,8 @@ class Detection(BaseModel):
     class_name: WasteClass
     confidence: float = Field(ge=0, le=1)
     box: Box
+    item_name: str | None = Field(None, description="What Gemini sees in this box (with ?verify=true)")
+    ai_checked: bool = Field(False, description="Gemini looked at this box and confirmed it is plastic")
 
 
 class ModelInfo(BaseModel):
@@ -69,6 +71,9 @@ class DetectResponse(BaseModel):
     inference_ms: float
     scan_id: str | None = Field(None, description="Set when the scan was saved to history (?save=true)")
     verdict: Verdict | None = Field(None, description="Final plastic verdict, set with ?verify=true")
+    ai_removed: list[str] = Field(
+        default_factory=list, description="What Gemini saw in boxes it removed as not plastic (face, wall, ...)"
+    )
 
 
 class ScanItemOut(BaseModel):

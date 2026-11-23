@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { CLASS_META, percent } from "../classes";
 import { boxToPercent, fitContain, labelPlacement, type Size } from "../geometry";
-import type { Detection } from "../types";
+import { itemNumber, type Detection } from "../types";
 
 interface StageProps {
   media: Size | null;
@@ -12,8 +12,6 @@ interface StageProps {
   imageUrl?: string | null;
   showVideo: boolean;
   dimmed?: boolean;
-  /** The Gemini vision check confirmed plastic in this photo. */
-  aiConfirmed?: boolean;
   children?: ReactNode;
 }
 
@@ -27,7 +25,6 @@ export function Stage({
   imageUrl,
   showVideo,
   dimmed,
-  aiConfirmed = false,
   children,
 }: StageProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -63,11 +60,12 @@ export function Stage({
           detections.map((detection) => {
             const meta = CLASS_META[detection.class_name];
             const selected = detection.id === selectedId;
-            const label = aiConfirmed
-              ? `${detection.class_name} ✓ AI-checked`
-              : `${detection.class_name} ${percent(detection.confidence)}`;
+            const title = `${detection.class_name} ${itemNumber(detection)}`;
+            const label = detection.item_name
+              ? `${title} · ${detection.item_name}${detection.ai_checked ? " ✓" : ""}`
+              : `${title} ${percent(detection.confidence)}`;
             // In busy scenes, only label the selected and confident boxes so labels don't pile up.
-            const showLabel = selected || detections.length <= 3 || detection.confidence >= 0.5 || aiConfirmed;
+            const showLabel = selected || detections.length <= 3 || detection.confidence >= 0.5 || Boolean(detection.ai_checked);
             return (
               <button
                 key={detection.id}

@@ -129,15 +129,41 @@ describe("Gemini vision second opinion", () => {
     message: contains ? `Plastic confirmed by the AI check: ${items.join(", ")}.` : "The AI check does not see plastic here, so the detector's box may be wrong.",
   });
 
-  it("skips the manual question when the AI check confirms plastic", async () => {
+  it("numbers and names each AI-checked box and uses its name for the guide", async () => {
     const fetchMock = mockGuide(guide({ title: "Glasses frame keyring" }));
-    const scan = { ...result("low_confidence", [weak]), verdict: verdict(true, ["glasses frame"]) };
+    const named = { ...weak, item_name: "glasses frame", ai_checked: true };
+    const scan = {
+      ...result("low_confidence", [named]),
+      verdict: verdict(true, ["glasses frame"]),
+      ai_removed: ["person", "wall"],
+    };
     render(<ResultsPanel result={scan} selectedId={0} onSelect={() => {}} onRetake={() => {}} announce={() => {}} enabled={["Plastic"]} />);
     expect(screen.getByTestId("verdict")).toHaveTextContent("Plastic confirmed by the AI check: glasses frame.");
-    expect(screen.getByText("AI-checked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Plastic 1\s*glasses frame\s*AI-checked/ })).toBeInTheDocument();
+    expect(screen.getByTestId("ai-removed")).toHaveTextContent("removed 2 boxes that were not plastic (person, wall)");
     expect(await screen.findByRole("heading", { name: "Glasses frame keyring" })).toBeInTheDocument();
     expect(screen.queryByText("Is this item plastic?")).not.toBeInTheDocument();
-    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body)).confirmed_by_user).toBe(true);
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+    expect(body.confirmed_by_user).toBe(true);
+    expect(body.item_hint).toBe("glasses frame");
+  });
+
+  it("a photo-level confirmation alone does not mark unchecked boxes", () => {
+    mockGuide(guide());
+    const scan = { ...result("low_confidence", [weak]), verdict: verdict(true, ["plastic cup"]) };
+    render(<ResultsPanel result={scan} selectedId={0} onSelect={() => {}} onRetake={() => {}} announce={() => {}} enabled={["Plastic"]} />);
+    expect(screen.queryByText("AI-checked")).not.toBeInTheDocument();
+    expect(screen.getByText("Is this item plastic?")).toBeInTheDocument();
+  });
+
+  it("offers guides for items the AI saw but the detector did not box", async () => {
+    const fetchMock = mockGuide(guide({ title: "Cup seed starter" }));
+    const scan = { ...result("no_detections", []), verdict: verdict(true, ["plastic cup", "straw"]), ai_removed: ["person"] };
+    render(<ResultsPanel result={scan} selectedId={null} onSelect={() => {}} onRetake={() => {}} announce={() => {}} enabled={["Plastic"]} />);
+    expect(screen.getByRole("heading", { name: "Plastic seen, but not boxed" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Guide for plastic cup" }));
+    expect(await screen.findByRole("heading", { name: "Cup seed starter" })).toBeInTheDocument();
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body)).item_hint).toBe("plastic cup");
   });
 
   it("asks the user when the AI check does not see plastic", () => {

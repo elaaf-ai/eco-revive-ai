@@ -15,7 +15,7 @@ import re
 import time
 from typing import Literal, Protocol
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, Field, ValidationError
 
 PHOTO_PROMPT = (
@@ -30,6 +30,8 @@ PHOTO_PROMPT = (
     "\"water bottle\", \"bottle cap\", \"crisp packet\". Empty when contains_plastic is false."
 )
 
+RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
+
 ITEM_PROMPT = (
     "You identify one item for a plastic recycling app. The photo is a crop around the item the user selected. "
     "The selected item is inside or touches the green rectangle; the rectangle may cover only part of the item "
@@ -41,6 +43,65 @@ ITEM_PROMPT = (
     "is_plastic: true if the item is made mainly of plastic.\n"
     "certainty: high, medium or low."
 )
+
+
+BOX_PROMPT = (
+    "You check a detector's boxes for a plastic recycling app. The photo has numbered coloured rectangles; "
+    "each number is written in a filled tag at the rectangle's top-left corner. Their positions are also listed "
+    "below as percentages of the photo width and height (left, top, right, bottom).\n"
+    "For every numbered box, look at the main object inside it and answer:\n"
+    "- item_name: a short everyday name for that object, 1 to 4 words (for example \"plastic cup\", \"straw\", "
+    "\"cup lid\", \"glasses frame\"). If the box mostly shows a person, face, hand, wall or background, "
+    "name that (for example \"person\", \"face\", \"wall\").\n"
+    "- is_plastic: true only if that object is a loose item made mainly of plastic. People, faces, hands, skin, "
+    "hair, worn clothing, furniture, walls, windows and lights are false.\n"
+    "Return one entry per box number, in order."
+)
+
+
+class BoxLabel(BaseModel):
+    number: int
+    item_name: str
+    is_plastic: bool
+
+
+class BoxLabels(BaseModel):
+    boxes: list[BoxLabel]
+
+
+PALETTE = [(57, 255, 20), (255, 64, 129), (0, 229, 255), (255, 214, 0), (213, 0, 249),
+           (255, 109, 0), (118, 255, 3), (41, 121, 255), (255, 23, 68), (29, 233, 182)]
+
+
+def draw_numbered_boxes(jpeg: bytes, boxes: list[tuple[float, float, float, float]]) -> bytes:
+    """Draw each normalised box with a large numbered tag, for Gemini to refer to."""
+    image = Image.open(io.BytesIO(jpeg)).convert("RGB")
+    draw = ImageDraw.Draw(image)
+    w, h = image.size
+    size = max(16, w // 28)
+    try:
+        font: ImageFont.FreeTypeFont | ImageFont.ImageFont = ImageFont.load_default(size=size)
+    except TypeError:  # older Pillow
+        font = ImageFont.load_default()
+    for number, (x1, y1, x2, y2) in enumerate(boxes, start=1):
+        colour = PALETTE[(number - 1) % len(PALETTE)]
+        rect = (x1 * w, y1 * h, x2 * w, y2 * h)
+        draw.rectangle(rect, outline=colour, width=max(3, w // 200))
+        tag = str(number)
+        tx, ty = rect[0] + 2, rect[1] + 2
+        bbox = draw.textbbox((tx, ty), tag, font=font)
+        draw.rectangle((bbox[0] - 4, bbox[1] - 3, bbox[2] + 4, bbox[3] + 3), fill=colour)
+        draw.text((tx, ty), tag, fill=(0, 0, 0), font=font)
+    out = io.BytesIO()
+    image.save(out, "JPEG", quality=88)
+    return out.getvalue()
+
+
+def box_list_text(boxes: list[tuple[float, float, float, float]]) -> str:
+    return "\n".join(
+        f"Box {n}: {round(x1 * 100)}%, {round(y1 * 100)}%, {round(x2 * 100)}%, {round(y2 * 100)}%"
+        for n, (x1, y1, x2, y2) in enumerate(boxes, start=1)
+    )
 
 
 class PhotoVerdict(BaseModel):
@@ -67,6 +128,8 @@ class VisionProvider(Protocol):
     async def check_photo(self, jpeg: bytes) -> PhotoVerdict: ...
 
     async def identify_item(self, jpeg: bytes, context_items: list[str] | None = None) -> ItemIdentity: ...
+
+    async def label_boxes(self, jpeg: bytes, boxes: list[tuple[float, float, float, float]]) -> BoxLabels: ...
 
 
 def to_jpeg(image: Image.Image, side: int = 768, quality: int = 85) -> bytes:
@@ -110,35 +173,44 @@ class GeminiVision:
         self._timeout_s = timeout_s
 
     async def _ask(self, prompt: str, jpeg: bytes, schema: type[BaseModel]) -> BaseModel:
-        started = time.monotonic()
-        try:
-            reply = await asyncio.wait_for(
-                self._client.aio.interactions.create(
-                    model=self.model,
-                    input=[
-                        {"type": "text", "text": prompt},
-                        {"type": "image", "data": base64.b64encode(jpeg).decode(), "mime_type": "image/jpeg"},
-                    ],
-                    response_format={"type": "text", "mime_type": "application/json",
-                                     "schema": schema.model_json_schema()},
-                    timeout=self._timeout_s,
-                ),
-                self._timeout_s,
-            )
-        except TimeoutError:
-            raise VisionError("timeout") from None
-        except Exception as exc:  # SDK and transport errors
-            status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
-            raise VisionError(f"http_{status}" if status else type(exc).__name__) from None
-        text = getattr(reply, "output_text", None)
-        if not text:
-            raise VisionError("empty_response")
-        try:
-            return schema.model_validate_json(text)
-        except ValidationError:
-            raise VisionError("schema") from None
-        finally:
-            _ = time.monotonic() - started
+        """One structured call, retried once after a dropped connection, rate limit or server error."""
+        deadline = time.monotonic() + self._timeout_s
+        payload = [
+            {"type": "text", "text": prompt},
+            {"type": "image", "data": base64.b64encode(jpeg).decode(), "mime_type": "image/jpeg"},
+        ]
+        for attempt in (1, 2):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.5:
+                raise VisionError("timeout")
+            try:
+                reply = await asyncio.wait_for(
+                    self._client.aio.interactions.create(
+                        model=self.model,
+                        input=payload,
+                        response_format={"type": "text", "mime_type": "application/json",
+                                         "schema": schema.model_json_schema()},
+                        timeout=remaining,
+                    ),
+                    remaining,
+                )
+            except TimeoutError:
+                raise VisionError("timeout") from None
+            except Exception as exc:  # SDK and transport errors
+                status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+                transient = type(exc).__name__ in {"APIConnectionError", "APITimeoutError"}
+                if attempt == 1 and (transient or status in RETRYABLE_STATUS):
+                    await asyncio.sleep(0.4)
+                    continue
+                raise VisionError(f"http_{status}" if status else type(exc).__name__) from None
+            text = getattr(reply, "output_text", None)
+            if not text:
+                raise VisionError("empty_response")
+            try:
+                return schema.model_validate_json(text)
+            except ValidationError:
+                raise VisionError("schema") from None
+        raise VisionError("exhausted")
 
     async def check_photo(self, jpeg: bytes) -> PhotoVerdict:
         result = await self._ask(PHOTO_PROMPT, jpeg, PhotoVerdict)
@@ -155,4 +227,11 @@ class GeminiVision:
             )
         result = await self._ask(prompt, jpeg, ItemIdentity)
         assert isinstance(result, ItemIdentity)
+        return result
+
+    async def label_boxes(self, jpeg: bytes, boxes: list[tuple[float, float, float, float]]) -> BoxLabels:
+        """Name every numbered box and say whether it is plastic, in one call."""
+        prompt = f"{BOX_PROMPT}\n{box_list_text(boxes)}"
+        result = await self._ask(prompt, draw_numbered_boxes(jpeg, boxes), BoxLabels)
+        assert isinstance(result, BoxLabels)
         return result
