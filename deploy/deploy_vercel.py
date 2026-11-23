@@ -128,6 +128,9 @@ def smoke_test(url: str, image: Path) -> None:
 
 
 def main() -> int:
+    # The Vercel CLI prints symbols such as a check mark; Windows consoles default to cp1252.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--image", type=Path,
                         default=ROOT / "ml/data/processed/taco-5class-v1/images/val/batch_6_000017.jpg")
