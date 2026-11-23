@@ -145,6 +145,8 @@ export function Scanner({
           timeoutMs: 20000,
           idempotencyKey: newIdempotencyKey(),
           retries: 1,
+          save: true, // captured and uploaded photos go to history; live preview frames never do
+          verify: true, // Gemini vision second opinion, also for captures and uploads only
         });
         if (seq !== scanSeq.current) return;
         setScan({ status: "done", result });
@@ -340,6 +342,7 @@ export function Scanner({
             onRetake={retake}
             announce={announce}
             enabled={enabled}
+            photo={frame?.blob}
           />
         )}
       </section>

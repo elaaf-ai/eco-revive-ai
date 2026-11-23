@@ -43,3 +43,48 @@ export async function normaliseUpload(file: File, maxSide: number): Promise<Fram
   bitmap.close();
   return { blob: await canvasToBlob(canvas, 0.88), ...size };
 }
+
+/**
+ * Cut the selected box out of the photo, with some context around it, as a base64 JPEG
+ * (no data: prefix). The server asks Gemini what the item is, so the guide fits the real item.
+ */
+export async function cropToBase64(
+  photo: Blob,
+  box: { x1: number; y1: number; x2: number; y2: number },
+  maxSide = 512,
+  margin = 0.25,
+): Promise<string> {
+  const bitmap = await createImageBitmap(photo);
+  const { width: w, height: h } = bitmap;
+  const bw = (box.x2 - box.x1) * w;
+  const bh = (box.y2 - box.y1) * h;
+  let left = Math.max(0, box.x1 * w - bw * margin);
+  let top = Math.max(0, box.y1 * h - bh * margin);
+  let right = Math.min(w, box.x2 * w + bw * margin);
+  let bottom = Math.min(h, box.y2 * h + bh * margin);
+  // Very thin boxes (a glasses arm, a straw) still need enough context to recognise.
+  const minSide = Math.min(160, w, h);
+  if (right - left < minSide) {
+    const centre = (left + right) / 2;
+    left = Math.max(0, Math.min(w - minSide, centre - minSide / 2));
+    right = left + minSide;
+  }
+  if (bottom - top < minSide) {
+    const centre = (top + bottom) / 2;
+    top = Math.max(0, Math.min(h - minSide, centre - minSide / 2));
+    bottom = top + minSide;
+  }
+  const size = scaleToMaxSide({ width: right - left, height: bottom - top }, maxSide);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(size.width));
+  canvas.height = Math.max(1, Math.round(size.height));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("canvas");
+  context.drawImage(bitmap, left, top, right - left, bottom - top, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await canvasToBlob(canvas, 0.85);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}

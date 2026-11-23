@@ -118,7 +118,7 @@ test("camera permission denied", async ({ page }, info) => {
 });
 
 test("empty scan", async ({ page }, info) => {
-  await page.route("**/v1/detect", async (route) => {
+  await page.route("**/v1/detect*", async (route) => {
     const response = await route.fetch();
     const body = await response.json();
     body.detections = [];
@@ -132,7 +132,7 @@ test("empty scan", async ({ page }, info) => {
 });
 
 test("uncertain scan asks for confirmation", async ({ page }, info) => {
-  await page.route("**/v1/detect", async (route) => {
+  await page.route("**/v1/detect*", async (route) => {
     const response = await route.fetch();
     const body = await response.json();
     body.detections = body.detections.slice(0, 1).map((d: { confidence: number }) => ({ ...d, confidence: 0.34 }));
@@ -149,7 +149,7 @@ test("uncertain scan asks for confirmation", async ({ page }, info) => {
 });
 
 test("server busy", async ({ page }, info) => {
-  await page.route("**/v1/detect", (route) =>
+  await page.route("**/v1/detect*", (route) =>
     route.fulfill({
       status: 503,
       headers: { "Retry-After": "1" },

@@ -54,7 +54,7 @@ test("scan shows only plastic boxes", async ({ page }, info) => {
 });
 
 test("uncertain plastic scan asks yes or no", async ({ page }) => {
-  await page.route("**/v1/detect", async (route) => {
+  await page.route("**/v1/detect*", async (route) => {
     const response = await route.fetch();
     const body = await response.json();
     body.detections = body.detections.map((d: { confidence: number }) => ({ ...d, confidence: 0.33 }));
@@ -70,7 +70,7 @@ test("uncertain plastic scan asks yes or no", async ({ page }) => {
 
 test("B-22: a failed live scan clears the previous boxes", async ({ page }) => {
   let calls = 0;
-  await page.route("**/v1/detect", async (route) => {
+  await page.route("**/v1/detect*", async (route) => {
     calls += 1;
     if (calls === 1) return route.fallback();
     return route.fulfill({

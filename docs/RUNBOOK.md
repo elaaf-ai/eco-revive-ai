@@ -64,4 +64,17 @@ Redeploy the previous image tag, which encodes commit and model version, for exa
 
 ## Data handling
 
-Uploaded images live only in memory for the duration of a request and are never stored. No database is used.
+Uploaded images live only in memory for the duration of a request and are never stored.
+
+### Scan history database
+
+- **What is stored:** for each captured or uploaded scan: time (UTC), model version, quality status, number of plastic items, and each item's class and confidence. No photos, no boxes, no IP addresses. The browser's anonymous id is stored only as a SHA-256 hash. Each browser keeps at most 200 scans; users can delete theirs on the History page (`DELETE /v1/history`).
+- **Where:** Neon Postgres, added to the Vercel project from **Storage → Neon**. Vercel sets `DATABASE_URL`; the app also accepts `ECOREVIVE_DATABASE_URL` or `POSTGRES_URL`. The table is created on first use.
+- **Locally:** set `ECOREVIVE_DATABASE_URL=sqlite:///data/ecorevive.db` in `backend/.env`. Leave it unset to turn history off; scanning still works and the History link is hidden.
+- **Outage:** scans still succeed with `scan_id: null`; `/v1/history` returns `503 history_unavailable`. Metrics: `history_saved`, `history_save_failed`.
+
+### Gemini vision check
+
+- Used for captures and uploads (`?verify=true`) and for item names in guides. Live preview frames never call Gemini.
+- Metrics: `vision_plastic`, `vision_no_plastic`, `vision_identified`, `vision_error_<reason>`. `vision_error_http_429` means the free quota is used up; the detector then decides alone.
+- Turn it off with `ECOREVIVE_VISION_ENABLED=false`. Change the rule with `ECOREVIVE_VERDICT_RULE` (`gemini`, `yolo`, `gated`).

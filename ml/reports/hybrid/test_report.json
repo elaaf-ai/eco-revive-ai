@@ -1,0 +1,95 @@
+{
+  "split": "test",
+  "photos": 210,
+  "with_plastic": 148,
+  "gemini_answered": 210,
+  "always_plastic_baseline": 0.7048,
+  "model_version": "0.2.0-preview-small",
+  "gemini_model": "gemini-3.5-flash-lite",
+  "rules": {
+    "yolo@0.1": {
+      "accuracy": 0.7476,
+      "balanced_accuracy": 0.6007,
+      "finds_plastic": 0.9595,
+      "correct_no_plastic": 0.2419
+    },
+    "yolo@0.14": {
+      "accuracy": 0.7238,
+      "balanced_accuracy": 0.5885,
+      "finds_plastic": 0.9189,
+      "correct_no_plastic": 0.2581
+    },
+    "yolo@0.2": {
+      "accuracy": 0.7,
+      "balanced_accuracy": 0.581,
+      "finds_plastic": 0.8716,
+      "correct_no_plastic": 0.2903
+    },
+    "yolo@0.25": {
+      "accuracy": 0.681,
+      "balanced_accuracy": 0.5675,
+      "finds_plastic": 0.8446,
+      "correct_no_plastic": 0.2903
+    },
+    "yolo@0.3": {
+      "accuracy": 0.6667,
+      "balanced_accuracy": 0.5667,
+      "finds_plastic": 0.8108,
+      "correct_no_plastic": 0.3226
+    },
+    "gemini": {
+      "accuracy": 0.8095,
+      "balanced_accuracy": 0.7805,
+      "finds_plastic": 0.8514,
+      "correct_no_plastic": 0.7097
+    },
+    "yolo@0.25_or_gemini": {
+      "accuracy": 0.7381,
+      "balanced_accuracy": 0.5986,
+      "finds_plastic": 0.9392,
+      "correct_no_plastic": 0.2581
+    },
+    "yolo@0.25_and_gemini": {
+      "accuracy": 0.7524,
+      "balanced_accuracy": 0.7493,
+      "finds_plastic": 0.7568,
+      "correct_no_plastic": 0.7419
+    },
+    "gated_0.05_0.4": {
+      "accuracy": 0.7381,
+      "balanced_accuracy": 0.6361,
+      "finds_plastic": 0.8851,
+      "correct_no_plastic": 0.3871
+    },
+    "gated_0.1_0.4": {
+      "accuracy": 0.7429,
+      "balanced_accuracy": 0.6442,
+      "finds_plastic": 0.8851,
+      "correct_no_plastic": 0.4032
+    },
+    "gated_0.05_0.5": {
+      "accuracy": 0.7571,
+      "balanced_accuracy": 0.6731,
+      "finds_plastic": 0.8784,
+      "correct_no_plastic": 0.4677
+    },
+    "gated_0.1_0.5": {
+      "accuracy": 0.7619,
+      "balanced_accuracy": 0.6811,
+      "finds_plastic": 0.8784,
+      "correct_no_plastic": 0.4839
+    },
+    "gated_0.05_0.6": {
+      "accuracy": 0.7619,
+      "balanced_accuracy": 0.6858,
+      "finds_plastic": 0.8716,
+      "correct_no_plastic": 0.5
+    },
+    "gated_0.1_0.6": {
+      "accuracy": 0.7667,
+      "balanced_accuracy": 0.6939,
+      "finds_plastic": 0.8716,
+      "correct_no_plastic": 0.5161
+    }
+  }
+}

@@ -116,3 +116,46 @@ it("lets the user choose between several detections", async () => {
   await userEvent.click(screen.getByRole("button", { name: /Glass/ }));
   expect(onSelect).toHaveBeenCalledWith(1);
 });
+
+describe("Gemini vision second opinion", () => {
+  const weak = { ...plastic, confidence: 0.27 };
+  const verdict = (contains: boolean, items: string[] = []) => ({
+    contains_plastic: contains,
+    rule: "gemini" as const,
+    decided_by: "gemini" as const,
+    detector_score: 0.27,
+    gemini: contains ? ("plastic" as const) : ("no_plastic" as const),
+    plastic_items: items,
+    message: contains ? `Plastic confirmed by the AI check: ${items.join(", ")}.` : "The AI check does not see plastic here, so the detector's box may be wrong.",
+  });
+
+  it("skips the manual question when the AI check confirms plastic", async () => {
+    const fetchMock = mockGuide(guide({ title: "Glasses frame keyring" }));
+    const scan = { ...result("low_confidence", [weak]), verdict: verdict(true, ["glasses frame"]) };
+    render(<ResultsPanel result={scan} selectedId={0} onSelect={() => {}} onRetake={() => {}} announce={() => {}} enabled={["Plastic"]} />);
+    expect(screen.getByTestId("verdict")).toHaveTextContent("Plastic confirmed by the AI check: glasses frame.");
+    expect(screen.getByText("AI-checked")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Glasses frame keyring" })).toBeInTheDocument();
+    expect(screen.queryByText("Is this item plastic?")).not.toBeInTheDocument();
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body)).confirmed_by_user).toBe(true);
+  });
+
+  it("asks the user when the AI check does not see plastic", () => {
+    mockGuide(guide());
+    const scan = { ...result("ok", [plastic]), verdict: verdict(false) };
+    render(<ResultsPanel result={scan} selectedId={0} onSelect={() => {}} onRetake={() => {}} announce={() => {}} enabled={["Plastic"]} />);
+    expect(screen.getByTestId("verdict")).toHaveTextContent("does not see plastic");
+    expect(screen.getByText("Is this item plastic?")).toBeInTheDocument();
+  });
+
+  it("shows the item the AI identified from the crop", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ api_version: "1", request_id: "g", guide: guide({ title: "Frame photo holder" }), cached: false, identified_item: "glasses frame" }),
+        { status: 200 },
+      ),
+    );
+    render(<ResultsPanel result={result("ok", [plastic])} selectedId={0} onSelect={() => {}} onRetake={() => {}} announce={() => {}} />);
+    expect(await screen.findByTestId("identified-item")).toHaveTextContent("Identified as glasses frame");
+  });
+});

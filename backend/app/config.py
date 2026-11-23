@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -53,10 +53,27 @@ class Settings(BaseSettings):
     guide_timeout_s: float = Field(12.0, gt=0)
     guide_retries: int = Field(1, ge=0, le=3)
     guide_cache_ttl_s: int = 3600
+
+    # Gemini vision second opinion on captured and uploaded scans (never live preview frames).
+    vision_enabled: bool = True
+    vision_timeout_s: float = Field(10.0, gt=0, le=30)
+    # How the final "contains plastic" verdict is made. "gemini" was chosen on the validation split
+    # (ml/scripts/evaluate_hybrid.py): yolo, gemini, or gated (YOLO when sure, Gemini otherwise).
+    verdict_rule: Literal["yolo", "gemini", "gated"] = "gemini"
+    verdict_yolo_high: float = Field(0.5, ge=0, le=1)
+    verdict_yolo_low: float = Field(0.1, ge=0, le=1)
     guide_cache_size: int = 256
 
     # Idempotency for retried expensive requests. In-memory: valid for a single instance.
     idempotency_ttl_s: int = 600
+
+    # Scan history database. Postgres (Neon on Vercel sets DATABASE_URL) or sqlite:///path.db locally.
+    # Unset turns history off; scanning still works.
+    database_url: SecretStr | None = Field(
+        None, validation_alias=AliasChoices("ECOREVIVE_DATABASE_URL", "DATABASE_URL", "POSTGRES_URL")
+    )
+    database_timeout_s: float = Field(5.0, gt=0, le=30)
+    history_per_minute: int = 30
 
     # Header carrying the real client IP. Set it only when the host's own proxy overwrites it
     # (for example "x-forwarded-for" on Vercel). Unset means the socket peer address is used.

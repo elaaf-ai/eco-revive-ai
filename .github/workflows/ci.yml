@@ -25,6 +25,19 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      # Real Postgres for the scan history tests (production uses Neon Postgres).
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ecorevive
+          POSTGRES_PASSWORD: ecorevive
+          POSTGRES_DB: ecorevive_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ecorevive" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://ecorevive:ecorevive@localhost:5432/ecorevive_test?sslmode=disable
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6

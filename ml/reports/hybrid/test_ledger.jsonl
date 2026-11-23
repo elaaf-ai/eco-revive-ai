@@ -1,0 +1,1 @@
+{"evaluated_at": "2026-11-23T06:46:06.496789+00:00", "rule": "gemini", "result": {"accuracy": 0.8095, "balanced_accuracy": 0.7805, "finds_plastic": 0.8514, "correct_no_plastic": 0.7097}, "baseline": 0.7048, "model_version": "0.2.0-preview-small", "gemini_model": "gemini-3.5-flash-lite"}

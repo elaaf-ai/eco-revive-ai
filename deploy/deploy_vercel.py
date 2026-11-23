@@ -114,6 +114,18 @@ def smoke_test(url: str, image: Path) -> None:
         other = client.post("/v1/guides", json={"class_name": "Metal", "confidence": 0.9})
         print("non-plastic guide refused:", other.status_code, other.json().get("error", {}).get("code"))
 
+        # Scan history (database) and the Gemini vision verdict, as the website's capture/upload sends them.
+        browser = {"X-Client-Id": "deploy-smoke-test-0001"}
+        print("history enabled:", ready.json().get("history_enabled"))
+        saved = client.post("/v1/detect?save=true&verify=true", content=image.read_bytes(),
+                            headers={"Content-Type": "image/jpeg", **browser}).json()
+        print("saved scan:", saved.get("scan_id"), "| verdict:", (saved.get("verdict") or {}).get("message"))
+        history = client.get("/v1/history", headers=browser)
+        summary = history.json().get("you") if history.status_code == 200 else history.text
+        print("history:", history.status_code, summary)
+        cleared = client.delete("/v1/history", headers=browser)
+        print("history cleared:", cleared.status_code, cleared.text[:80])
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)

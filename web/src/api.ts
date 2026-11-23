@@ -1,4 +1,12 @@
-import type { CatalogItem, DetectResponse, GuideRequest, GuideResponse, ItemSummary, Readiness } from "./types";
+import type {
+  CatalogItem,
+  DetectResponse,
+  GuideRequest,
+  GuideResponse,
+  HistoryResponse,
+  ItemSummary,
+  Readiness,
+} from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -27,7 +35,7 @@ function newId(): string {
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-/** Anonymous per-browser id that scopes idempotency keys. Not used for tracking. */
+/** Anonymous per-browser id. It scopes idempotency keys and this browser's scan history; the server stores only a hash. */
 export function clientId(): string {
   try {
     const stored = localStorage.getItem("ecorevive-client-id");
@@ -117,10 +125,23 @@ function normalise(error: unknown): unknown {
 
 export function detect(
   image: Blob,
-  options: { signal?: AbortSignal; timeoutMs?: number; idempotencyKey?: string; retries?: number },
+  options: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    idempotencyKey?: string;
+    retries?: number;
+    /** Save the result to this browser's history. */
+    save?: boolean;
+    /** Ask the server for the Gemini vision second opinion. Never for live preview frames. */
+    verify?: boolean;
+  },
 ): Promise<DetectResponse> {
+  const params = new URLSearchParams();
+  if (options.save) params.set("save", "true");
+  if (options.verify) params.set("verify", "true");
+  const query = params.toString();
   return request<DetectResponse>(
-    "/v1/detect",
+    query ? `/v1/detect?${query}` : "/v1/detect",
     { method: "POST", body: image, headers: { "Content-Type": image.type || "image/jpeg" } },
     { timeoutMs: options.timeoutMs ?? 15000, ...options },
   );
@@ -155,6 +176,14 @@ export function matchItems(items: ItemSummary[], query: string): ItemSummary[] {
   return items.filter(
     (item) => item.name.toLowerCase().includes(text) || item.aliases.some((alias) => alias.toLowerCase().includes(text)),
   );
+}
+
+export function fetchHistory(signal?: AbortSignal, limit = 20): Promise<HistoryResponse> {
+  return request<HistoryResponse>(`/v1/history?limit=${limit}`, { method: "GET" }, { signal, timeoutMs: 15000 });
+}
+
+export function clearHistory(signal?: AbortSignal): Promise<{ deleted: number }> {
+  return request<{ deleted: number }>("/v1/history", { method: "DELETE" }, { signal, timeoutMs: 15000 });
 }
 
 export async function fetchReadiness(signal?: AbortSignal): Promise<Readiness> {

@@ -37,6 +37,46 @@ export interface DetectResponse {
   detections: Detection[];
   quality: { status: QualityStatus; message: string; image_hints: ImageHint[] };
   inference_ms: number;
+  /** Set when the scan was saved to this browser's history. */
+  scan_id?: string | null;
+  /** Final plastic verdict from the detector and the Gemini vision check (captures and uploads). */
+  verdict?: Verdict | null;
+}
+
+export interface Verdict {
+  contains_plastic: boolean;
+  rule: "yolo" | "gemini" | "gated";
+  decided_by: "detector" | "gemini";
+  detector_score: number;
+  gemini: "plastic" | "no_plastic" | "unavailable" | "not_asked";
+  plastic_items: string[];
+  message: string;
+}
+
+export interface SavedScan {
+  id: string;
+  /** UTC, ISO 8601 */
+  created_at: string;
+  model_version: string;
+  quality: QualityStatus;
+  item_count: number;
+  top_class: WasteClass | null;
+  top_confidence: number | null;
+  inference_ms: number;
+  items: { class_name: WasteClass; confidence: number }[];
+}
+
+export interface ScanStats {
+  scans: number;
+  items_found: number;
+  items_this_week?: number | null;
+}
+
+export interface HistoryResponse {
+  api_version: "1";
+  scans: SavedScan[];
+  you: ScanStats;
+  everyone: ScanStats;
 }
 
 export interface GuideRequest {
@@ -46,6 +86,8 @@ export interface GuideRequest {
   item_hint?: string;
   /** 0 is the first idea; 1-9 ask the server for a different one. */
   variant?: number;
+  /** Base64 JPEG crop of the selected item, so the guide is written for that item. */
+  image?: string;
 }
 
 export interface Guide {
@@ -65,6 +107,8 @@ export interface GuideResponse {
   request_id: string;
   guide: Guide;
   cached: boolean;
+  /** Item name the AI read from the image crop, for example "glasses frame". */
+  identified_item?: string | null;
 }
 
 export interface ItemSummary {
@@ -86,5 +130,7 @@ export interface Readiness {
   model_loaded: boolean;
   model: ModelInfo | null;
   guide_provider: "gemini" | "curated_only";
+  /** True when the server has a scan history database. */
+  history_enabled?: boolean;
   detail: string;
 }

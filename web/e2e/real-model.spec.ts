@@ -18,7 +18,7 @@ test("real model: upload, real boxes, guide", async ({ page }, info) => {
   await page.goto("/#/scan");
   await expect(page.getByText(/Model \d+\.\d+\.\d+-preview/)).toBeVisible();
 
-  const response = page.waitForResponse("**/v1/detect");
+  const response = page.waitForResponse("**/v1/detect*");
   await page.locator('input[type="file"]').setInputFiles(photos[0]!);
   const body = await (await response).json();
   expect(body.model.version).toMatch(/^\d+\.\d+\.\d+-preview/);

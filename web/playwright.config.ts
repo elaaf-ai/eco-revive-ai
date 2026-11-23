@@ -1,15 +1,19 @@
 import { defineConfig } from "@playwright/test";
+import os from "node:os";
+import path from "node:path";
 
 // UI review and end-to-end checks against the real backend serving the built site.
 // Two servers start: port 8010 with all five classes enabled (flow.spec.ts) and port 8011 in the
-// plastic-only product mode (plastic.spec.ts, real-model.spec.ts). By default they load the fixture
+// plastic-only product mode with scan history (plastic.spec.ts, history.spec.ts, real-model.spec.ts). By default they load the fixture
 // model (fixed boxes, labelled as not a real model). Set E2E_MODEL_DIR to use a trained model.
 export const ALL_CLASSES_PORT = 8010;
 export const PLASTIC_PORT = 8011;
 const modelDir = process.env.E2E_MODEL_DIR ?? "models/fixture";
+// The plastic server keeps scan history in a fresh SQLite file for each run.
+const historyDb = path.join(os.tmpdir(), `ecorevive-e2e-${Date.now()}.db`);
 const python = process.platform === "win32" ? ".venv\\Scripts\\python.exe" : ".venv/bin/python";
 
-const server = (port: number, enabledClasses: string[]) => ({
+const server = (port: number, enabledClasses: string[], extraEnv: Record<string, string> = {}) => ({
   command: `${python} -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port ${port}`,
   cwd: "../backend",
   url: `http://127.0.0.1:${port}/readyz`,
@@ -22,6 +26,7 @@ const server = (port: number, enabledClasses: string[]) => ({
     ECOREVIVE_LOG_LEVEL: "WARNING",
     ECOREVIVE_ENABLED_CLASSES: JSON.stringify(enabledClasses),
     GEMINI_API_KEY: "",
+    ...extraEnv,
   },
 });
 
@@ -46,6 +51,6 @@ export default defineConfig({
   ],
   webServer: [
     server(ALL_CLASSES_PORT, ["Plastic", "Glass", "Metal", "Organic", "Hazardous"]),
-    server(PLASTIC_PORT, ["Plastic"]),
+    server(PLASTIC_PORT, ["Plastic"], { ECOREVIVE_DATABASE_URL: `sqlite:///${historyDb}` }),
   ],
 });

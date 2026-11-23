@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchReadiness } from "./api";
+import { History } from "./screens/History";
 import { Home } from "./screens/Home";
 import { Scanner } from "./screens/Scanner";
 import type { Readiness, WasteClass } from "./types";
 
-type Route = "home" | "scan";
+type Route = "home" | "scan" | "history";
 
-const routeFromHash = (): Route => (window.location.hash === "#/scan" ? "scan" : "home");
+const routeFromHash = (): Route =>
+  window.location.hash === "#/scan" ? "scan" : window.location.hash === "#/history" ? "history" : "home";
 const isRouteHash = (hash: string) => hash === "" || hash === "#" || hash.startsWith("#/");
 
 function ModelStatus({ readiness }: { readiness: Readiness | null }) {
@@ -59,7 +61,7 @@ export function App() {
   // Move focus to the new screen on navigation, but not on first load, so the skip link stays first.
   const firstRoute = useRef(true);
   useEffect(() => {
-    document.title = route === "scan" ? "Scan · EcoRevive" : "EcoRevive";
+    document.title = route === "scan" ? "Scan · EcoRevive" : route === "history" ? "History · EcoRevive" : "EcoRevive";
     if (firstRoute.current) {
       firstRoute.current = false;
       return;
@@ -73,6 +75,7 @@ export function App() {
     : ["Plastic"];
 
   const aiAvailable = readiness?.guide_provider === "gemini";
+  const historyEnabled = readiness?.history_enabled === true;
 
   // Re-setting identical text would not be re-announced, so clear first.
   const announce = useCallback((text: string) => {
@@ -108,6 +111,11 @@ export function App() {
           <a href="#/scan" aria-current={route === "scan" ? "page" : undefined}>
             Scan
           </a>
+          {(historyEnabled || route === "history") && (
+            <a href="#/history" aria-current={route === "history" ? "page" : undefined}>
+              History
+            </a>
+          )}
         </nav>
       </header>
 
@@ -119,6 +127,12 @@ export function App() {
             announce={announce}
             aiAvailable={aiAvailable}
           />
+        ) : route === "history" ? (
+          readiness ? (
+            <History announce={announce} enabled={historyEnabled} />
+          ) : (
+            <p className="loading history">Checking the server…</p>
+          )
         ) : (
           <Scanner announce={announce} enabled={enabled} aiAvailable={aiAvailable} />
         )}

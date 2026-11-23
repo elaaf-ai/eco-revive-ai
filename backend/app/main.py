@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -14,7 +15,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -28,6 +29,7 @@ from .curated_guides import SAFETY_NOTICE
 from .detector import ModelLoadError, OnnxDetector, RawDetection
 from .errors import ApiError
 from .guides import GeminiProvider, GuideProvider, GuideService
+from .history import HistoryStore, HistoryUnavailable, ScanItem, ScanRecord
 from .idempotency import IdempotencyStore
 from .imaging import decode_image, quality_hints
 from .observability import REQUEST_ID_PATTERN, Metrics, configure_logging, log, request_id_var
@@ -40,11 +42,14 @@ from .schemas import (
     GuideRequest,
     GuideResponse,
     Health,
+    HistoryResponse,
     ModelInfo,
     Readiness,
     ScanQuality,
+    Verdict,
     WasteClass,
 )
+from .vision import GeminiVision, VisionError, VisionProvider, clean_item_name, to_jpeg
 
 logger = logging.getLogger("ecorevive.api")
 CLIENT_ID_HEADER = "X-Client-Id"
@@ -112,6 +117,7 @@ def create_app(
     settings: Settings | None = None,
     detector_factory: Callable[[Settings, list[str]], OnnxDetector] | None = None,
     guide_provider: GuideProvider | None = None,
+    vision_provider: VisionProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -134,6 +140,11 @@ def create_app(
             settings.gemini_model,
             settings.guide_timeout_s,
             settings.guide_retries,
+        )
+
+    if vision_provider is None and settings.gemini_api_key and settings.vision_enabled:
+        vision_provider = GeminiVision(
+            settings.gemini_api_key.get_secret_value(), settings.gemini_model, settings.vision_timeout_s
         )
 
     model_lock = asyncio.Lock()
@@ -163,8 +174,16 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         await ensure_model(app)
+        if app.state.history is not None:
+            try:
+                await asyncio.to_thread(app.state.history.ping)
+                log(logger, "history_ready", database=app.state.history.kind)
+            except HistoryUnavailable as exc:  # scanning still works; history calls report 503
+                log(logger, "history_unavailable", logging.WARNING, reason=str(exc))
         yield
         app.state.gate.shutdown()
+        if app.state.history is not None:
+            app.state.history.close()
 
     app = FastAPI(
         title="EcoRevive API",
@@ -183,6 +202,12 @@ def create_app(
     )
     app.state.idempotency = IdempotencyStore(settings.idempotency_ttl_s)
     app.state.limiter = RateLimiter()
+    app.state.vision = vision_provider
+    app.state.history = (
+        HistoryStore(settings.database_url.get_secret_value(), settings.database_timeout_s)
+        if settings.database_url and settings.database_url.get_secret_value().strip()
+        else None
+    )
     app.state.guides = GuideService(
         guide_provider, settings.low_confidence, settings.guide_cache_ttl_s, settings.guide_cache_size, metrics
     )
@@ -190,7 +215,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "DELETE"],
         allow_headers=["Content-Type", "Idempotency-Key", CLIENT_ID_HEADER, "X-Request-ID"],
         expose_headers=["X-Request-ID", "Retry-After", "Idempotent-Replayed"],
         max_age=600,
@@ -283,6 +308,7 @@ def create_app(
             model_loaded=ready,
             model=model_info() if ready else None,
             guide_provider="gemini" if app.state.guides.provider else "curated_only",
+            history_enabled=app.state.history is not None,
             detail="ready" if ready else app.state.model_error or "Model unavailable.",
         )
         return JSONResponse(body.model_dump(mode="json"), status_code=200 if ready else 503)
@@ -306,12 +332,67 @@ def create_app(
             chunks.append(chunk)
         return b"".join(chunks)
 
-    def run_detection(data: bytes) -> tuple[list[RawDetection], dict[str, int], list[str], float]:
+    def run_detection(
+        data: bytes, want_jpeg: bool = False
+    ) -> tuple[list[RawDetection], dict[str, int], list[str], float, bytes | None]:
         image = decode_image(data, settings.max_pixels, settings.min_side)
         started = time.perf_counter()
         detections = app.state.detector.predict(image)
         elapsed = (time.perf_counter() - started) * 1000
-        return detections, {"width": image.width, "height": image.height}, quality_hints(image), elapsed
+        jpeg = to_jpeg(image) if want_jpeg else None
+        return detections, {"width": image.width, "height": image.height}, quality_hints(image), elapsed, jpeg
+
+    async def decide(shown: list[RawDetection], jpeg: bytes | None) -> Verdict:
+        """Final "contains plastic?" answer. The rule and thresholds were chosen on the validation split."""
+        score = max((d.confidence for d in shown), default=0.0)
+        rule = settings.verdict_rule
+        detector_sure = score >= settings.verdict_yolo_high or score < settings.verdict_yolo_low
+        needs_gemini = rule == "gemini" or (rule == "gated" and not detector_sure)
+        gemini = "not_asked"
+        items: list[str] = []
+        gemini_says: bool | None = None
+        if needs_gemini and jpeg is not None and app.state.vision is not None:
+            try:
+                answer = await app.state.vision.check_photo(jpeg)
+                gemini_says = answer.contains_plastic
+                gemini = "plastic" if gemini_says else "no_plastic"
+                items = [n for n in (clean_item_name(i) for i in answer.plastic_items[:5]) if n]
+                metrics.incr(f"vision_{gemini}")
+            except VisionError as exc:
+                gemini = "unavailable"
+                metrics.incr(f"vision_error_{exc.reason}")
+                log(logger, "vision_unavailable", logging.WARNING, reason=exc.reason)
+        elif needs_gemini:
+            gemini = "unavailable"
+
+        if gemini_says is not None:
+            contains, decided_by = gemini_says, "gemini"
+        elif rule in {"yolo", "gemini"}:
+            contains, decided_by = bool(shown), "detector"
+        else:
+            # Gemini was not needed (detector sure) or not available: the detector decides.
+            contains, decided_by = score >= settings.verdict_yolo_high or (bool(shown) and detector_sure), "detector"
+
+        if contains and decided_by == "gemini" and not shown:
+            what = ", ".join(items[:3]) or "a plastic item"
+            message = f"The AI check sees plastic ({what}) that the detector did not box. Retake it closer."
+        elif contains and decided_by == "gemini":
+            message = "Plastic confirmed by the AI check" + (f": {', '.join(items[:3])}." if items else ".")
+        elif contains:
+            message = "Plastic found by the detector."
+        elif shown and decided_by == "gemini":
+            message = "The AI check does not see plastic here, so the detector's box may be wrong."
+        else:
+            message = "No plastic found."
+        return Verdict(
+            contains_plastic=contains,
+            rule=rule,
+            decided_by=decided_by,
+            detector_score=round(score, 4),
+            gemini=gemini,
+            plastic_items=items,
+            message=message,
+        )
 
     @app.post(
         "/v1/detect",
@@ -327,7 +408,9 @@ def create_app(
             }
         },
     )
-    async def detect(request: Request):
+    async def detect(request: Request, save: bool = False, verify: bool = False):
+        """Find items in a photo. With save=true and an X-Client-Id header, the result (never the photo)
+        is added to that browser's scan history."""
         app.state.limiter.check(rate_key(request), "detect", settings.detect_per_minute)
         await ensure_model(app)
         if app.state.detector is None:
@@ -338,13 +421,31 @@ def create_app(
         data = await read_body(request)
 
         async def produce() -> DetectResponse:
-            detections, size, hints, elapsed = await app.state.gate.run(run_detection, data)
+            detections, size, hints, elapsed, jpeg = await app.state.gate.run(run_detection, data, verify)
             metrics.observe("inference", elapsed)
             shown = [d for d in detections if classes[d.class_id] in enabled]
             item_word = enabled[0].lower() if len(enabled) == 1 else "waste"
             quality = assess(shown, classes, settings.low_confidence, competitors=detections, item_word=item_word)
             quality.image_hints = hints
             ranked = sorted(shown, key=lambda d: d.confidence, reverse=True)
+            verdict = await decide(shown, jpeg) if verify else None
+            scan_id = None
+            client = history_client(request)
+            if save and client and app.state.history is not None:
+                record = ScanRecord(
+                    model_version=app.state.detector.version,
+                    quality=quality.status,
+                    inference_ms=elapsed,
+                    items=[ScanItem(classes[d.class_id], d.confidence) for d in ranked],
+                )
+                try:
+                    scan_id = await asyncio.wait_for(
+                        asyncio.to_thread(app.state.history.add, client, record), settings.database_timeout_s + 1
+                    )
+                    metrics.incr("history_saved")
+                except (HistoryUnavailable, TimeoutError) as exc:  # the scan result matters more than history
+                    metrics.incr("history_save_failed")
+                    log(logger, "history_save_failed", logging.WARNING, reason=str(exc) or type(exc).__name__)
             return DetectResponse(
                 request_id=request_id_var.get(),
                 model=model_info(),
@@ -361,6 +462,8 @@ def create_app(
                 ],
                 quality=quality,
                 inference_ms=round(elapsed, 1),
+                scan_id=scan_id,
+                verdict=verdict,
             )
 
         return await idempotent(request, "detect", hashlib.sha256(data).hexdigest(), produce)
@@ -372,11 +475,43 @@ def create_app(
             raise ApiError(422, "class_not_enabled", f"This app only gives guides for: {', '.join(enabled)}.")
 
         async def produce() -> GuideResponse:
-            guide, cached = await app.state.guides.get(body)
-            return GuideResponse(request_id=request_id_var.get(), guide=guide, cached=cached)
+            request_body, identified = body.model_copy(update={"image": None}), None
+            if body.image and not body.item_hint and app.state.vision is not None:
+                identified = await identify(body.image)
+                if identified is not None:
+                    name, material, is_plastic, certainty = identified
+                    if not is_plastic and certainty != "low" and body.class_name.value == "Plastic":
+                        raise ApiError(
+                            422,
+                            "not_this_material",
+                            f"This looks like {material} ({name}), not plastic. "
+                            "Retake the photo or search for the item by name.",
+                        )
+                    request_body = request_body.model_copy(update={"item_hint": name})
+            guide, cached = await app.state.guides.get(request_body)
+            return GuideResponse(request_id=request_id_var.get(), guide=guide, cached=cached,
+                                 identified_item=identified[0] if identified else None)
 
         fingerprint = hashlib.sha256(body.model_dump_json().encode()).hexdigest()
         return await idempotent(request, "guides", fingerprint, produce)
+
+    async def identify(image_b64: str) -> tuple[str, str, bool, str] | None:
+        """Name the item in a crop. A Gemini failure falls back to a guide for the class alone."""
+        try:
+            image = decode_image(base64.b64decode(image_b64, validate=True), settings.max_pixels, 16)
+        except Exception:
+            raise ApiError(422, "invalid_image", "The item image could not be read.") from None
+        try:
+            answer = await app.state.vision.identify_item(to_jpeg(image, side=512))
+        except VisionError as exc:
+            metrics.incr(f"vision_error_{exc.reason}")
+            log(logger, "identify_unavailable", logging.WARNING, reason=exc.reason)
+            return None
+        name = clean_item_name(answer.item_name)
+        if not name:
+            return None
+        metrics.incr("vision_identified")
+        return name, clean_item_name(answer.material) or "another material", answer.is_plastic, answer.certainty
 
     async def idempotent(request: Request, endpoint: str, fingerprint: str, produce) -> Response:
         key = request.headers.get("Idempotency-Key")
@@ -390,6 +525,41 @@ def create_app(
         if replayed:
             headers["X-Request-ID"] = result.request_id
         return JSONResponse(result.model_dump(mode="json"), headers=headers)
+
+    def history_client(request: Request) -> str | None:
+        client_id = request.headers.get(CLIENT_ID_HEADER, "")
+        return client_id if REQUEST_ID_PATTERN.match(client_id) else None
+
+    def history_for(request: Request) -> tuple[HistoryStore, str]:
+        app.state.limiter.check(rate_key(request), "history", settings.history_per_minute)
+        if app.state.history is None:
+            raise ApiError(503, "history_disabled", "Scan history is not set up on this server.")
+        client = history_client(request)
+        if client is None:
+            raise ApiError(400, "client_id_required", f"Send the {CLIENT_ID_HEADER} header to see your history.")
+        return app.state.history, client
+
+    async def history_call(fn, *args):
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(fn, *args), settings.database_timeout_s * 2 + 1)
+        except (HistoryUnavailable, TimeoutError) as exc:
+            log(logger, "history_unavailable", logging.WARNING, reason=str(exc) or type(exc).__name__)
+            raise ApiError(503, "history_unavailable", "Scan history is unavailable. Try again shortly.",
+                           retry_after_s=10) from None
+
+    @app.get("/v1/history", response_model=HistoryResponse, tags=["history"], responses=ERRORS)
+    async def get_history(request: Request, limit: int = Query(20, ge=1, le=100)):
+        """This browser's most recent saved scans, newest first, with totals."""
+        store, client = history_for(request)
+        scans = await history_call(store.recent, client, limit)
+        stats = await history_call(store.stats, client)
+        return HistoryResponse(scans=scans, you=stats["you"], everyone=stats["everyone"])
+
+    @app.delete("/v1/history", tags=["history"], responses=ERRORS)
+    async def clear_history(request: Request) -> dict:
+        """Delete every saved scan of this browser."""
+        store, client = history_for(request)
+        return {"deleted": await history_call(store.clear, client)}
 
     catalog = Catalog()
 

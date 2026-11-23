@@ -47,6 +47,18 @@ class ScanQuality(BaseModel):
     image_hints: list[Literal["too_dark", "too_bright", "blurry", "small"]] = []
 
 
+class Verdict(BaseModel):
+    """Photo-level answer to "does this photo contain plastic?", from the detector and Gemini vision."""
+
+    contains_plastic: bool
+    rule: Literal["yolo", "gemini", "gated"]
+    decided_by: Literal["detector", "gemini"]
+    detector_score: float = Field(ge=0, le=1, description="Highest plastic confidence from the detector")
+    gemini: Literal["plastic", "no_plastic", "unavailable", "not_asked"]
+    plastic_items: list[str] = Field(default_factory=list, description="Item names Gemini saw")
+    message: str
+
+
 class DetectResponse(BaseModel):
     api_version: Literal["1"] = "1"
     request_id: str
@@ -55,6 +67,38 @@ class DetectResponse(BaseModel):
     detections: list[Detection]
     quality: ScanQuality
     inference_ms: float
+    scan_id: str | None = Field(None, description="Set when the scan was saved to history (?save=true)")
+    verdict: Verdict | None = Field(None, description="Final plastic verdict, set with ?verify=true")
+
+
+class ScanItemOut(BaseModel):
+    class_name: WasteClass
+    confidence: float
+
+
+class ScanOut(BaseModel):
+    id: str
+    created_at: str = Field(description="UTC, ISO 8601")
+    model_version: str
+    quality: Literal["ok", "no_detections", "low_confidence", "ambiguous"]
+    item_count: int
+    top_class: WasteClass | None
+    top_confidence: float | None
+    inference_ms: float
+    items: list[ScanItemOut]
+
+
+class ScanStats(BaseModel):
+    scans: int
+    items_found: int
+    items_this_week: int | None = None
+
+
+class HistoryResponse(BaseModel):
+    api_version: Literal["1"] = "1"
+    scans: list[ScanOut]
+    you: ScanStats
+    everyone: ScanStats
 
 
 class GuideRequest(BaseModel):
@@ -63,6 +107,10 @@ class GuideRequest(BaseModel):
     confirmed_by_user: bool = False
     item_hint: str | None = Field(None, max_length=60, description="Optional user-provided item name")
     variant: int = Field(0, ge=0, le=9, description="Ask for a different idea for the same item (0 = first idea)")
+    image: str | None = Field(
+        None, max_length=400_000,
+        description="Optional base64 JPEG crop of the selected item. Gemini names the item so the guide fits it.",
+    )
 
 
 class Guide(BaseModel):
@@ -82,6 +130,7 @@ class GuideResponse(BaseModel):
     request_id: str
     guide: Guide
     cached: bool
+    identified_item: str | None = Field(None, description="Item name Gemini read from the image, if sent")
 
 
 class ErrorBody(BaseModel):
@@ -104,4 +153,5 @@ class Readiness(BaseModel):
     model_loaded: bool
     model: ModelInfo | None
     guide_provider: Literal["gemini", "curated_only"]
+    history_enabled: bool = False
     detail: str

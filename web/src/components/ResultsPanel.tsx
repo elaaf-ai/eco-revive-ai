@@ -1,7 +1,8 @@
-import { HelpCircle, Loader2, RotateCcw } from "lucide-react";
+import { BadgeCheck, HelpCircle, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { ApiError, fetchGuide } from "../api";
 import { CLASS_META, percent } from "../classes";
+import { cropToBase64 } from "../frames";
 import { WASTE_CLASSES, type DetectResponse, type Guide, type WasteClass } from "../types";
 import { GuideCard } from "./GuideCard";
 
@@ -9,7 +10,7 @@ type GuideState =
   | { status: "idle" }
   | { status: "confirm"; reason: string }
   | { status: "loading" }
-  | { status: "ready"; guide: Guide; cached: boolean }
+  | { status: "ready"; guide: Guide; cached: boolean; item: string | null }
   | { status: "error"; message: string };
 
 interface ResultsPanelProps {
@@ -19,6 +20,8 @@ interface ResultsPanelProps {
   onRetake: () => void;
   announce: (message: string) => void;
   enabled?: WasteClass[];
+  /** The scanned photo. A crop of the selected item is sent so the guide fits the real item. */
+  photo?: Blob;
 }
 
 const HINTS: Record<string, string> = {
@@ -35,10 +38,17 @@ export function ResultsPanel({
   onRetake,
   announce,
   enabled = [...WASTE_CLASSES],
+  photo,
 }: ResultsPanelProps) {
   const single = enabled.length === 1 ? enabled[0] : undefined;
   const selected = result.detections.find((d) => d.id === selectedId) ?? null;
-  const uncertain = result.quality.status === "low_confidence" || result.quality.status === "ambiguous";
+  const verdict = result.verdict ?? null;
+  // The Gemini vision check is an independent second opinion. When it confirms plastic, the user
+  // does not need to confirm the material by hand.
+  const aiConfirmed = Boolean(verdict?.contains_plastic && verdict.gemini === "plastic");
+  const aiRejected = Boolean(verdict && !verdict.contains_plastic && verdict.gemini === "no_plastic");
+  const uncertain =
+    !aiConfirmed && (result.quality.status === "low_confidence" || result.quality.status === "ambiguous" || aiRejected);
   const [guide, setGuide] = useState<GuideState>({ status: "idle" });
   const [material, setMaterial] = useState<WasteClass | null>(null);
   const [request, setRequest] = useState<{ cls: WasteClass; confirmed: boolean } | null>(null);
@@ -51,9 +61,9 @@ export function ResultsPanel({
     setMaterial(selected.class_name);
     if (uncertain) {
       setRequest(null);
-      setGuide({ status: "confirm", reason: result.quality.message });
+      setGuide({ status: "confirm", reason: aiRejected && verdict ? verdict.message : result.quality.message });
     } else {
-      setRequest({ cls: selected.class_name, confirmed: false });
+      setRequest({ cls: selected.class_name, confirmed: aiConfirmed });
       setGuide({ status: "loading" });
     }
   }
@@ -61,13 +71,31 @@ export function ResultsPanel({
   useEffect(() => {
     if (!request || !selected) return;
     const controller = new AbortController();
-    fetchGuide(
-      { class_name: request.cls, confidence: selected.confidence, confirmed_by_user: request.confirmed },
-      controller.signal,
-    )
+    const crop = photo ? cropToBase64(photo, selected.box).catch(() => undefined) : Promise.resolve(undefined);
+    crop
+      .then((image) =>
+        fetchGuide(
+          {
+            class_name: request.cls,
+            confidence: selected.confidence,
+            confirmed_by_user: request.confirmed,
+            ...(image ? { image } : {}),
+          },
+          controller.signal,
+        ),
+      )
       .then((response) => {
-        setGuide({ status: "ready", guide: response.guide, cached: response.cached });
-        announce(`Guide ready: ${response.guide.title}`);
+        setGuide({
+          status: "ready",
+          guide: response.guide,
+          cached: response.cached,
+          item: response.identified_item ?? null,
+        });
+        announce(
+          response.identified_item
+            ? `Identified ${response.identified_item}. Guide ready: ${response.guide.title}`
+            : `Guide ready: ${response.guide.title}`,
+        );
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -81,14 +109,15 @@ export function ResultsPanel({
         }
       });
     return () => controller.abort();
-  }, [request, selected, announce]);
+  }, [request, selected, announce, photo]);
 
   if (result.detections.length === 0) {
+    const aiSeesPlastic = verdict?.contains_plastic && verdict.gemini === "plastic";
     return (
       <div className="panel-empty">
         <HelpCircle size={28} aria-hidden />
-        <h2>Nothing recognised</h2>
-        <p>{result.quality.message}</p>
+        <h2>{aiSeesPlastic ? "Plastic seen, but not boxed" : "Nothing recognised"}</h2>
+        <p>{aiSeesPlastic && verdict ? verdict.message : result.quality.message}</p>
         {result.quality.image_hints.map((hint) => (
           <p key={hint} className="hint">
             {HINTS[hint]}
@@ -112,7 +141,13 @@ export function ResultsPanel({
         </button>
       </div>
 
-      {uncertain && <p className="notice notice-warn">{result.quality.message}</p>}
+      {verdict && verdict.gemini !== "not_asked" && verdict.gemini !== "unavailable" && (
+        <p className={`notice ${verdict.contains_plastic ? "notice-ok" : "notice-warn"}`} data-testid="verdict">
+          {verdict.contains_plastic ? <BadgeCheck size={18} aria-hidden /> : <HelpCircle size={18} aria-hidden />}
+          <span>{verdict.message}</span>
+        </p>
+      )}
+      {uncertain && !aiRejected && <p className="notice notice-warn">{result.quality.message}</p>}
       {result.quality.image_hints.map((hint) => (
         <p key={hint} className="hint">
           {HINTS[hint]}
@@ -135,8 +170,17 @@ export function ResultsPanel({
                 <span className="detection-swatch" aria-hidden>
                   {meta.short}
                 </span>
-                <span className="detection-name">{detection.class_name}</span>
-                <span className="detection-conf">{percent(detection.confidence)}</span>
+                <span className="detection-name">
+                  {detection.class_name}
+                  {aiConfirmed && (
+                    <span className="detection-check">
+                      <BadgeCheck size={14} aria-hidden /> AI-checked
+                    </span>
+                  )}
+                </span>
+                <span className="detection-conf" title="Detector confidence">
+                  {percent(detection.confidence)}
+                </span>
               </button>
             </li>
           );
@@ -192,6 +236,11 @@ export function ResultsPanel({
         </p>
       )}
       {selected && guide.status === "error" && <p className="notice notice-error">{guide.message}</p>}
+      {selected && guide.status === "ready" && guide.item && (
+        <p className="identified" data-testid="identified-item">
+          <Sparkles size={16} aria-hidden /> Identified as <strong>{guide.item}</strong>
+        </p>
+      )}
       {selected && guide.status === "ready" && <GuideCard guide={guide.guide} cached={guide.cached} />}
     </div>
   );
